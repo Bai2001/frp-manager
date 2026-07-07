@@ -18,7 +18,9 @@ const menus = [
 
 onMounted(() => {
   // 绑定后端 app.Event.Emit 的 log:append 事件
-  Events.On('log:append', (line: any) => {
+  // v3 的 Events.On 回调收到的是 WailsEvent 对象，数据在 ev.data 里
+  Events.On('log:append', (ev: any) => {
+    const line = ev?.data ?? ev
     logStore.append({
       time: line.time ?? new Date().toISOString(),
       level: line.level ?? 'info',

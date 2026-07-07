@@ -4,22 +4,49 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/kdc/frp-manager/server/internal/config"
+	"github.com/kdc/frp-manager/server/internal/domain"
+	"github.com/kdc/frp-manager/server/internal/frps"
+	"github.com/kdc/frp-manager/server/internal/portpool"
+	"github.com/kdc/frp-manager/server/internal/store"
 )
 
 // Server 持有所有 handler 依赖。
 type Server struct {
-	cfg *config.Config
-	// TODO: store / frps / portpool / domain 依赖在后续模块实现时注入
+	cfg     *config.Config
+	store   *store.Store
+	frps    *frps.Manager
+	ports   *portpool.Manager
+	domains *domain.Manager
 }
 
-// New 创建 API Server。
-func New(cfg *config.Config) *Server {
-	return &Server{cfg: cfg}
+// New 创建 API Server，注入全部依赖。
+func New(cfg *config.Config, st *store.Store, f *frps.Manager, p *portpool.Manager, d *domain.Manager) *Server {
+	return &Server{cfg: cfg, store: st, frps: f, ports: p, domains: d}
+}
+
+// NewTestServer 供测试用：自动从 cfg 解析 frps 配置并构造依赖。
+func NewTestServer(t *testing.T, cfg *config.Config) *Server {
+	t.Helper()
+	db, err := store.Open(cfg.Server.Database)
+	if err != nil {
+		t.Fatalf("Open db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	st, err := store.NewStore(db)
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	f := frps.NewManager(cfg.Frps.Config, cfg.Frps.Binary)
+	frpCfg, _ := f.Config()
+	p := portpool.NewManager(st, frpCfg)
+	d := domain.NewManager(st, &cfg.Domain)
+	return New(cfg, st, f, p, d)
 }
 
 // Router 构建并返回 HTTP 路由树。
@@ -30,8 +57,8 @@ func (s *Server) Router() http.Handler {
 	r.Use(s.authMiddleware)
 
 	r.Get("/api/health", s.health)
-	// TODO: 以下端点在后续模块实现
-	// r.Get("/api/capabilities", s.capabilities)
+	r.Get("/api/capabilities", s.capabilities)
+	// 以下端点在后续任务启用
 	// r.Get("/api/ports/check", s.checkPort)
 	// r.Post("/api/ports/allocate", s.allocatePort)
 	// r.Post("/api/ports/release", s.releasePort)
@@ -65,6 +92,59 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 		"status":  "ok",
 		"version": "0.1.0",
 	})
+}
+
+// CapabilitiesResponse 对应设计文档 13.2 节。
+type CapabilitiesResponse struct {
+	FrpsRunning        bool             `json:"frps_running"`
+	FrpsVersion        string           `json:"frps_version"`
+	BindPort           int              `json:"bind_port"`
+	AllowPorts         []AllowPortRange `json:"allow_ports"`
+	SupportTCP         bool             `json:"support_tcp"`
+	SupportUDP         bool             `json:"support_udp"`
+	SupportHTTP        bool             `json:"support_http"`
+	SupportHTTPS       bool             `json:"support_https"`
+	VhostHTTPPort      int              `json:"vhost_http_port"`
+	VhostHTTPSPort     int              `json:"vhost_https_port"`
+	SubdomainHost      string           `json:"subdomain_host"`
+	AllowedRootDomains []string         `json:"allowed_root_domains"`
+}
+
+// AllowPortRange 是 capabilities 响应里的端口范围项。
+type AllowPortRange struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+}
+
+func (s *Server) capabilities(w http.ResponseWriter, _ *http.Request) {
+	cfg, err := s.frps.Config()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "读取 frps 配置失败: " + err.Error()})
+		return
+	}
+	st, _ := s.frps.Status(nil)
+	resp := CapabilitiesResponse{
+		BindPort:           cfg.BindPort,
+		FrpsRunning:        st != nil && st.Running,
+		SupportTCP:         true,
+		SupportUDP:         true,
+		SupportHTTP:        cfg.VhostHTTPPort != nil,
+		SupportHTTPS:       cfg.VhostHTTPSPort != nil,
+		SubdomainHost:      cfg.SubDomainHost,
+		AllowedRootDomains: s.cfg.Domain.AllowedRootDomains,
+	}
+	if cfg.VhostHTTPPort != nil {
+		resp.VhostHTTPPort = *cfg.VhostHTTPPort
+	}
+	if cfg.VhostHTTPSPort != nil {
+		resp.VhostHTTPSPort = *cfg.VhostHTTPSPort
+	}
+	for _, ap := range cfg.AllowPorts {
+		if ap.Start != 0 && ap.End != 0 {
+			resp.AllowPorts = append(resp.AllowPorts, AllowPortRange{Start: ap.Start, End: ap.End})
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

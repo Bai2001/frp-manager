@@ -10,6 +10,9 @@ bin/
 dist/
 vendor/
 
+# Go 开发工具
+.air.toml
+
 # Node / 前端
 node_modules/
 frontend/dist/

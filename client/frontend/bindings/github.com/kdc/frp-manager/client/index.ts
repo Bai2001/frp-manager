@@ -6,7 +6,7 @@ export {
     App
 };
 
-export {
+export type {
     AddServerInput,
     AddTunnelInput,
     ServerInfo,

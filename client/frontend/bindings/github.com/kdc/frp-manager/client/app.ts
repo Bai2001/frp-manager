@@ -9,7 +9,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -41,9 +41,7 @@ export function AddTunnel($in: $models.AddTunnelInput): $CancellablePromise<stri
  * CheckServerCapabilities 查询服务端能力。
  */
 export function CheckServerCapabilities(serverId: string): $CancellablePromise<agent$0.Capabilities | null> {
-    return $Call.ByID(911576626, serverId).then(($result: any) => {
-        return $$createType1($result);
-    });
+    return $Call.ByID(911576626, serverId);
 }
 
 /**
@@ -99,19 +97,15 @@ export function IsFrpcRunning(serverId: string): $CancellablePromise<boolean> {
 /**
  * ListServers 返回所有服务器。
  */
-export function ListServers(): $CancellablePromise<$models.ServerInfo[]> {
-    return $Call.ByID(3825619783).then(($result: any) => {
-        return $$createType3($result);
-    });
+export function ListServers(): $CancellablePromise<$models.ServerInfo[] | null> {
+    return $Call.ByID(3825619783);
 }
 
 /**
  * ListTunnels 返回指定服务器的映射；serverId 为空则返回全部。
  */
-export function ListTunnels(serverId: string): $CancellablePromise<$models.TunnelInfo[]> {
-    return $Call.ByID(3790133688, serverId).then(($result: any) => {
-        return $$createType5($result);
-    });
+export function ListTunnels(serverId: string): $CancellablePromise<$models.TunnelInfo[] | null> {
+    return $Call.ByID(3790133688, serverId);
 }
 
 /**
@@ -156,11 +150,3 @@ export function UpdateServerByID(id: string, $in: $models.AddServerInput): $Canc
 export function UpdateTunnelByID(id: string, $in: $models.AddTunnelInput): $CancellablePromise<void> {
     return $Call.ByID(3590828754, id, $in);
 }
-
-// Private type creation functions
-const $$createType0 = agent$0.Capabilities.createFrom;
-const $$createType1 = $Create.Nullable($$createType0);
-const $$createType2 = $models.ServerInfo.createFrom;
-const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = $models.TunnelInfo.createFrom;
-const $$createType5 = $Create.Array($$createType4);

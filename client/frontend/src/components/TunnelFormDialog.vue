@@ -66,7 +66,8 @@ async function handleSubmit() {
       local_port: form.local_port,
     }
     if (isPortProtocol.value) {
-      input.remote_port = form.remote_port
+      // 自动分配时显式传 0，避免 undefined 导致 Wails 反序列化问题
+      input.remote_port = form.auto_port ? 0 : (form.remote_port || 0)
     } else {
       if (form.domain_mode === 'custom') {
         input.custom_domain = form.custom_domain

@@ -83,11 +83,18 @@ function backend(): any {
 }
 
 // 统一调用包装：Wails 方法返回 Promise，reject 时抛 Error。
+// Wails reject 的值可能是字符串、对象或 Error，统一规范化成带 message 的 Error。
 async function call<T>(fn: any, ...args: any[]): Promise<T> {
   if (!fn) {
     throw new Error('后端未就绪（window.go.main.App 不存在）')
   }
-  return await fn(...args)
+  try {
+    return await fn(...args)
+  } catch (e: any) {
+    const msg = typeof e === 'string' ? e
+      : (e?.message ?? e?.error ?? (typeof e === 'object' ? JSON.stringify(e) : String(e)))
+    throw new Error(msg ?? '未知错误')
+  }
 }
 
 export const api = {

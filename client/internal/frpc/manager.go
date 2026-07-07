@@ -12,19 +12,25 @@ import (
 )
 
 // Manager 内嵌 frpc 服务，每个 serverID 对应一个 Service + ctx cancel。
+// 用 generation 标记每次启动，避免 Restart 时旧 goroutine 退出误删新 service。
 type Manager struct {
-	mu       sync.Mutex
-	services map[string]*client.Service
-	cancels  map[string]context.CancelFunc
-	logCb    func(serverID, line string)
+	mu          sync.Mutex
+	services    map[string]*client.Service
+	cancels     map[string]context.CancelFunc
+	generations map[string]uint64
+	dones       map[string]chan struct{}
+	nextGen     uint64
+	logCb       func(serverID, line string)
 }
 
 // NewManager 创建 frpc 管理器。
 // 内嵌后不再需要 configDir（不写配置文件），故无参。
 func NewManager() *Manager {
 	return &Manager{
-		services: map[string]*client.Service{},
-		cancels:  map[string]context.CancelFunc{},
+		services:    map[string]*client.Service{},
+		cancels:     map[string]context.CancelFunc{},
+		generations: map[string]uint64{},
+		dones:       map[string]chan struct{}{},
 	}
 }
 
@@ -61,35 +67,61 @@ func (m *Manager) Start(ctx context.Context, serverID string, common *v1.ClientC
 		return fmt.Errorf("创建 frpc service: %w", err)
 	}
 	runCtx, cancel := context.WithCancel(ctx)
+	m.nextGen++
+	gen := m.nextGen
+	done := make(chan struct{})
 	m.services[serverID] = svr
 	m.cancels[serverID] = cancel
+	m.generations[serverID] = gen
 	go func() {
 		_ = svr.Run(runCtx)
 		m.mu.Lock()
-		delete(m.services, serverID)
-		delete(m.cancels, serverID)
+		// 只在自己 generation 匹配时清理，避免 Restart 后旧 goroutine 误删新 service
+		if m.generations[serverID] == gen {
+			delete(m.services, serverID)
+			delete(m.cancels, serverID)
+			delete(m.generations, serverID)
+		}
 		m.mu.Unlock()
+		close(done)
 	}()
+	// 记录 done 通道供 Restart 等待旧 service 退出
+	if m.dones == nil {
+		m.dones = map[string]chan struct{}{}
+	}
+	m.dones[serverID] = done
 	return nil
 }
 
 // Stop 停止指定 server 的 frpc。
 func (m *Manager) Stop(_ context.Context, serverID string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	cancel, ok := m.cancels[serverID]
 	if !ok {
+		m.mu.Unlock()
 		return fmt.Errorf("server %s 未运行", serverID)
 	}
 	cancel()
 	delete(m.services, serverID)
 	delete(m.cancels, serverID)
+	delete(m.generations, serverID)
+	done := m.dones[serverID]
+	delete(m.dones, serverID)
+	m.mu.Unlock()
+	// 等待旧 service goroutine 退出，确保端口/连接释放
+	if done != nil {
+		<-done
+	}
 	return nil
 }
 
 // Restart 重启指定 server 的 frpc。
+// 先 Stop（等待旧 service 退出），再 Start，避免端口/连接冲突与状态竞态。
 func (m *Manager) Restart(ctx context.Context, serverID string, common *v1.ClientCommonConfig, proxies []v1.ProxyConfigurer) error {
-	_ = m.Stop(ctx, serverID)
+	if err := m.Stop(ctx, serverID); err != nil {
+		// 未运行不算错误，继续 Start
+		_ = err
+	}
 	return m.Start(ctx, serverID, common, proxies)
 }
 

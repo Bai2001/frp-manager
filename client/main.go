@@ -52,6 +52,11 @@ func main() {
 		Bind: []interface{}{
 			app,
 		},
+		// 单实例锁：防止重复启动。托盘与"关闭最小化到托盘"因 Wails v2.12
+		// 托盘 API 不在 options.App 直接暴露（仅内部 menumanager），留 v0.2。
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId: "frp-manager-instance-lock",
+		},
 	})
 
 	if err != nil {

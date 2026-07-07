@@ -50,6 +50,14 @@ func main() {
 		log.Printf("警告: 解析 frps 配置失败（capabilities 将返回不完整）: %v", err)
 	}
 
+	// 自动启动内嵌 frps，供客户端 frpc 连接
+	// frps 随 agent 进程生命周期运行，不提供运行时启停（frp 的 Close 不完全释放 vhost 端口）
+	if err := frpsMgr.Start(context.Background()); err != nil {
+		log.Printf("警告: 自动启动 frps 失败: %v", err)
+	} else {
+		log.Printf("frps 已自动启动，监听端口 %d", frpCfg.BindPort)
+	}
+
 	// 端口池与域名管理
 	portsMgr := portpool.NewManager(st, frpCfg)
 	domainMgr := domain.NewManager(st, &cfg.Domain)

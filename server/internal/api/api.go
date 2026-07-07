@@ -4,6 +4,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -58,10 +59,10 @@ func (s *Server) Router() http.Handler {
 
 	r.Get("/api/health", s.health)
 	r.Get("/api/capabilities", s.capabilities)
+	r.Get("/api/ports/check", s.checkPort)
+	r.Post("/api/ports/allocate", s.allocatePort)
+	r.Post("/api/ports/release", s.releasePort)
 	// 以下端点在后续任务启用
-	// r.Get("/api/ports/check", s.checkPort)
-	// r.Post("/api/ports/allocate", s.allocatePort)
-	// r.Post("/api/ports/release", s.releasePort)
 	// r.Post("/api/domains/check", s.checkDomain)
 	// r.Post("/api/domains/register", s.registerDomain)
 	// r.Post("/api/domains/release", s.releaseDomain)
@@ -145,6 +146,54 @@ func (s *Server) capabilities(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) checkPort(w http.ResponseWriter, r *http.Request) {
+	protocol := r.URL.Query().Get("protocol")
+	portStr := r.URL.Query().Get("port")
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port < 1 || port > 65535 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "无效的 port"})
+		return
+	}
+	res, err := s.ports.Check(r.Context(), portpool.Protocol(protocol), port)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) allocatePort(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Protocol string `json:"protocol"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "无效请求体"})
+		return
+	}
+	port, err := s.ports.Allocate(r.Context(), portpool.Protocol(req.Protocol))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"protocol": req.Protocol, "port": port})
+}
+
+func (s *Server) releasePort(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Protocol string `json:"protocol"`
+		Port     int    `json:"port"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "无效请求体"})
+		return
+	}
+	if err := s.ports.Release(r.Context(), portpool.Protocol(req.Protocol), req.Port); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

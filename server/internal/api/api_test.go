@@ -2,13 +2,16 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kdc/frp-manager/server/internal/config"
+	"github.com/kdc/frp-manager/server/internal/portpool"
 )
 
 // writeAgentConfig 在临时目录生成 agent.toml 与配套 frps.toml，返回 agent.toml 路径。
@@ -97,5 +100,58 @@ func TestCapabilities_Unauthorized(t *testing.T) {
 	srv.Router().ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestPortsCheck(t *testing.T) {
+	cfgPath := writeAgentConfig(t)
+	cfg, _ := config.Load(cfgPath)
+	srv := NewTestServer(t, cfg)
+	req := httptest.NewRequest(http.MethodGet, "/api/ports/check?protocol=tcp&port=10001", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp portpool.CheckResult
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.Protocol != portpool.TCP || resp.Port != 10001 {
+		t.Errorf("got %+v", resp)
+	}
+}
+
+func TestPortsAllocateAndRelease(t *testing.T) {
+	cfgPath := writeAgentConfig(t)
+	cfg, _ := config.Load(cfgPath)
+	srv := NewTestServer(t, cfg)
+
+	// allocate
+	req := httptest.NewRequest(http.MethodPost, "/api/ports/allocate", strings.NewReader(`{"protocol":"tcp"}`))
+	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("allocate status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var alloc struct {
+		Protocol string `json:"protocol"`
+		Port     int    `json:"port"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &alloc)
+	if alloc.Port < 10000 || alloc.Port > 60000 {
+		t.Errorf("allocated port = %d, 不在范围", alloc.Port)
+	}
+
+	// release
+	body := fmt.Sprintf(`{"protocol":"tcp","port":%d}`, alloc.Port)
+	req2 := httptest.NewRequest(http.MethodPost, "/api/ports/release", strings.NewReader(body))
+	req2.Header.Set("Authorization", "Bearer test-token")
+	req2.Header.Set("Content-Type", "application/json")
+	rec2 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("release status=%d body=%s", rec2.Code, rec2.Body.String())
 	}
 }

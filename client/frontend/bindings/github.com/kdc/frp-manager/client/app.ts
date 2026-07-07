@@ -125,6 +125,8 @@ export function SetApplication(app: application$0.App | null): $CancellablePromi
 
 /**
  * StartFrpc 启动指定服务器的 frpc 进程，并转发其输出为日志事件。
+ * 注意：Start 是异步的——立即返回成功仅表示 frpc service 已创建并开始尝试连接 frps，
+ * 真正是否连上要看日志事件和 IsFrpcRunning 轮询。连接失败会通过日志事件推送。
  */
 export function StartFrpc(serverId: string): $CancellablePromise<void> {
     return $Call.ByID(3379011934, serverId);

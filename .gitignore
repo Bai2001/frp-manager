@@ -26,6 +26,8 @@ client/build/bin/
 client/build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 *.syso
 wails-vfs.dat
+# v3 Taskfile 缓存目录
+.task/
 
 # SQLite / 数据
 *.db

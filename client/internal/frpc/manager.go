@@ -132,3 +132,24 @@ func (m *Manager) IsRunning(serverID string) bool {
 	_, ok := m.services[serverID]
 	return ok
 }
+
+// StopAll 停止所有运行中的 frpc 服务，供应用退出时清理资源。
+// 逐个调用 Stop 等待每个 service goroutine 退出，确保端口/连接释放。
+func (m *Manager) StopAll() error {
+	m.mu.Lock()
+	ids := make([]string, 0, len(m.services))
+	for id := range m.services {
+		ids = append(ids, id)
+	}
+	m.mu.Unlock()
+
+	var firstErr error
+	for _, id := range ids {
+		if err := m.Stop(context.Background(), id); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
+}

@@ -7,22 +7,20 @@ import (
 	"strings"
 	"time"
 
+	v1 "github.com/fatedier/frp/pkg/config/v1"
 	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/kdc/frp-manager/client/internal/agent"
 	"github.com/kdc/frp-manager/client/internal/config"
 	"github.com/kdc/frp-manager/client/internal/db"
 	"github.com/kdc/frp-manager/client/internal/frpc"
-
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // App 是暴露给前端的 Wails 应用对象。
 // 所有前端通过 v3 自动生成的 bindings 调用的方法都挂在 App 上。
 type App struct {
 	app      *application.App
-	ctx      context.Context
 	database *sql.DB
 	repo     *db.Repo
 	frpcMgr  *frpc.Manager
@@ -42,7 +40,6 @@ func (a *App) SetApplication(app *application.App) {
 // ServiceStartup 在应用启动时由 Wails v3 调用。
 // 初始化 db/repo/frpcMgr，返回 error 可中断启动。
 func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
-	a.ctx = ctx
 	dbPath, err := config.DefaultDBPath()
 	if err != nil {
 		return fmt.Errorf("获取默认 DB 路径: %w", err)
@@ -72,12 +69,22 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	return nil
 }
 
-// ServiceShutdown 在应用退出时由 Wails v3 调用，释放数据库连接。
+// ServiceShutdown 在应用退出时由 Wails v3 调用，停止所有 frpc 并释放数据库连接。
 func (a *App) ServiceShutdown() error {
-	if a.database != nil {
-		return a.database.Close()
+	var firstErr error
+	if a.frpcMgr != nil {
+		if err := a.frpcMgr.StopAll(); err != nil {
+			firstErr = err
+		}
 	}
-	return nil
+	if a.database != nil {
+		if err := a.database.Close(); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
 }
 
 // InitForTest 注入测试依赖，不经过 Wails 运行时。

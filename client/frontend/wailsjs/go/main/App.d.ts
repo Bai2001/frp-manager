@@ -24,7 +24,7 @@ export function GenerateFrpcConfig(arg1:string):Promise<string>;
 
 export function Init(arg1:db.Repo,arg2:frpc.Manager):Promise<void>;
 
-export function InitForTest(arg1:string,arg2:string):Promise<void>;
+export function InitForTest(arg1:string):Promise<void>;
 
 export function IsFrpcRunning(arg1:string):Promise<boolean>;
 

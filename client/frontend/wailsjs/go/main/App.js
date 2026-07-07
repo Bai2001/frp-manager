@@ -38,8 +38,8 @@ export function Init(arg1, arg2) {
   return window['go']['main']['App']['Init'](arg1, arg2);
 }
 
-export function InitForTest(arg1, arg2) {
-  return window['go']['main']['App']['InitForTest'](arg1, arg2);
+export function InitForTest(arg1) {
+  return window['go']['main']['App']['InitForTest'](arg1);
 }
 
 export function IsFrpcRunning(arg1) {

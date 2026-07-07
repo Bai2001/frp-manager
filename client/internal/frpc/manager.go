@@ -7,8 +7,8 @@ import (
 
 	"github.com/fatedier/frp/client"
 	"github.com/fatedier/frp/pkg/config/source"
-	"github.com/fatedier/frp/pkg/policy/security"
 	v1 "github.com/fatedier/frp/pkg/config/v1"
+	"github.com/fatedier/frp/pkg/policy/security"
 )
 
 // Manager 内嵌 frpc 服务，每个 serverID 对应一个 Service + ctx cancel。

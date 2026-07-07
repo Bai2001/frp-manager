@@ -40,6 +40,7 @@ client/data/
 # 本地配置（保留 .example）
 server/configs/agent.toml
 server/configs/frps.toml
+server/configs/*.local.toml
 client/configs/*.toml
 
 # 日志

@@ -35,6 +35,10 @@ func main() {
 				}
 			},
 		},
+		Windows: application.WindowsOptions{
+			// 关闭主窗口不退出应用，托盘"退出"菜单负责真正退出
+			DisableQuitOnLastWindowClosed: true,
+		},
 	})
 
 	// 回填 app 引用，供 EmitLog 等使用 app.Event.Emit
@@ -48,6 +52,11 @@ func main() {
 		URL:              "/",
 	})
 	window.Show()
+
+	// 设置系统托盘：图标 + 右键菜单（显示/退出）+ 关闭最小化到托盘
+	tray := NewTray(app, window, appStruct.CloseToTray)
+	tray.Setup()
+	appStruct.SetTray(tray)
 
 	if err := app.Run(); err != nil {
 		log.Fatal(err)

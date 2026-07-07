@@ -7,6 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/wailsapp/wails/v3 v3.0.0-alpha2.115
+	golang.org/x/sys v0.44.0
 	modernc.org/sqlite v1.53.0
 )
 
@@ -55,7 +56,6 @@ require (
 	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/oauth2 v0.28.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.10.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
@@ -71,3 +71,8 @@ require (
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+// 本地 patch：把 Wails v3 popup menu 显示路径的 fatal() 降级为 error()。
+// 根因：Windows 25H2 Insider 会话上下文下 GetCursorPos 启动时返回失败，
+// Wails alpha2.115 直接 fatal 退出应用。官方未修（见 PR #5228/#5234 讨论）。
+replace github.com/wailsapp/wails/v3 => ./_wails-patch

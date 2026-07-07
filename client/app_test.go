@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kdc/frp-manager/client/internal/settings"
 )
 
 func newTestApp(t *testing.T) *App {
@@ -110,5 +112,58 @@ func TestGenerateFrpcConfig(t *testing.T) {
 	}
 	if !strings.Contains(out, "20389") {
 		t.Errorf("缺少 remotePort: %s", out)
+	}
+}
+
+func TestSettingsSaveLoad(t *testing.T) {
+	a := newTestApp(t)
+	in := settings.Settings{CloseToTray: true, LogRetentionDays: 7}
+	// 不测 AutoStart 真实写注册表，避免污染环境
+	if err := a.SaveSettings(in); err != nil {
+		t.Fatalf("SaveSettings: %v", err)
+	}
+	got, err := a.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	if got.CloseToTray != true || got.LogRetentionDays != 7 {
+		t.Errorf("设置往返不一致: %+v", got)
+	}
+}
+
+func TestExportImportDataRoundtrip(t *testing.T) {
+	a := newTestApp(t)
+	agentURL := newMockAgent(t)
+	sid, _ := a.AddServer(AddServerInput{Name: "prod", Host: "1.2.3.4", FrpsPort: 7000, FrpToken: "tok", AgentURL: agentURL, AgentToken: "a"})
+	_, _ = a.AddTunnel(AddTunnelInput{ServerID: sid, Name: "rdp", Protocol: "tcp", LocalIP: "127.0.0.1", LocalPort: 3389, RemotePort: 20389})
+
+	// 导出
+	raw, err := a.ExportData()
+	if err != nil {
+		t.Fatalf("ExportData: %v", err)
+	}
+	if !strings.Contains(raw, "prod") || !strings.Contains(raw, "rdp") {
+		t.Errorf("导出数据缺少内容: %s", raw)
+	}
+
+	// 导入前清空验证：导入会全量替换，导入后应能查到
+	a2 := newTestApp(t)
+	if err := a2.ImportData(raw); err != nil {
+		t.Fatalf("ImportData: %v", err)
+	}
+	servers, _ := a2.ListServers()
+	if len(servers) != 1 || servers[0].Name != "prod" {
+		t.Errorf("导入后服务器不匹配: %+v", servers)
+	}
+	tunnels, _ := a2.ListTunnels(sid)
+	if len(tunnels) != 1 || tunnels[0].Name != "rdp" {
+		t.Errorf("导入后映射不匹配: %+v", tunnels)
+	}
+}
+
+func TestImportDataCorruptJson(t *testing.T) {
+	a := newTestApp(t)
+	if err := a.ImportData("{bad json"); err == nil {
+		t.Error("损坏 JSON 应返回 error")
 	}
 }

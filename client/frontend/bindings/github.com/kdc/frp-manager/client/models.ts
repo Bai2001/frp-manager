@@ -46,6 +46,13 @@ export interface ServerInfo {
 }
 
 /**
+ * Tray 封装系统托盘与主窗口的生命周期绑定。
+ * 关闭窗口时根据 settings.CloseToTray 决定是隐藏到托盘还是真正退出。
+ */
+export interface Tray {
+}
+
+/**
  * TunnelInfo 对应客户端 SQLite tunnels 表。
  */
 export interface TunnelInfo {

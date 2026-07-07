@@ -16,6 +16,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as agent$0 from "./internal/agent/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as settings$0 from "./internal/settings/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as application$0 from "../../../wailsapp/wails/v3/pkg/application/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -53,6 +56,14 @@ export function Close(): $CancellablePromise<void> {
 }
 
 /**
+ * CloseToTray 返回当前是否启用"关闭最小化到托盘"。
+ * 供 Tray 的 WindowClosing hook 同步读取。
+ */
+export function CloseToTray(): $CancellablePromise<boolean> {
+    return $Call.ByID(1046885498);
+}
+
+/**
  * DeleteServer 删除服务器，并尝试通过 agent 释放其下映射占用的服务端资源。
  */
 export function DeleteServer(id: string): $CancellablePromise<void> {
@@ -68,9 +79,17 @@ export function DeleteTunnel(id: string): $CancellablePromise<void> {
 
 /**
  * EmitLog 向前端推送一条日志（通过 Wails v3 事件 log:append）。
+ * 同时按设置持久化到日志文件（若启用日志保留）。
  */
 export function EmitLog(level: string, message: string, serverID: string): $CancellablePromise<void> {
     return $Call.ByID(4241904664, level, message, serverID);
+}
+
+/**
+ * ExportData 导出所有服务器和映射为 JSON 字符串。
+ */
+export function ExportData(): $CancellablePromise<string> {
+    return $Call.ByID(2129581603);
 }
 
 /**
@@ -78,6 +97,29 @@ export function EmitLog(level: string, message: string, serverID: string): $Canc
  */
 export function GenerateFrpcConfig(serverId: string): $CancellablePromise<string> {
     return $Call.ByID(2145087677, serverId);
+}
+
+/**
+ * GetConfigDir 返回当前配置目录路径（只读展示用）。
+ */
+export function GetConfigDir(): $CancellablePromise<string> {
+    return $Call.ByID(4055022444);
+}
+
+/**
+ * GetSettings 返回当前应用设置。设置未初始化时返回零值。
+ */
+export function GetSettings(): $CancellablePromise<settings$0.Settings> {
+    return $Call.ByID(2554697378);
+}
+
+/**
+ * ImportData 从 JSON 字符串导入数据。策略：全量替换（先删后插）。
+ * 导入时不调用 agent 校验/注册，仅落库；用户后续启动 frpc 时若端口/域名冲突
+ * 会在 agent 校验阶段报错。
+ */
+export function ImportData(raw: string): $CancellablePromise<void> {
+    return $Call.ByID(413583092, raw);
 }
 
 /**
@@ -109,10 +151,25 @@ export function ListTunnels(serverId: string): $CancellablePromise<$models.Tunne
 }
 
 /**
+ * OpenConfigDir 用系统文件管理器打开配置目录。
+ */
+export function OpenConfigDir(): $CancellablePromise<void> {
+    return $Call.ByID(141282130);
+}
+
+/**
  * RestartFrpc 重启指定服务器的 frpc 进程。
  */
 export function RestartFrpc(serverId: string): $CancellablePromise<void> {
     return $Call.ByID(2319016453, serverId);
+}
+
+/**
+ * SaveSettings 保存设置并应用即时生效的部分（日志保留、开机自启）。
+ * 日志保留天数变化时重建 logWriter；开机自启变化时同步注册表/文件。
+ */
+export function SaveSettings($in: settings$0.Settings): $CancellablePromise<void> {
+    return $Call.ByID(1949631069, $in);
 }
 
 /**
@@ -121,6 +178,14 @@ export function RestartFrpc(serverId: string): $CancellablePromise<void> {
  */
 export function SetApplication(app: application$0.App | null): $CancellablePromise<void> {
     return $Call.ByID(4121261467, app);
+}
+
+/**
+ * SetTray 注入系统托盘管理器（由 main.go 在 Tray.Setup 后回填）。
+ * 当前仅供未来扩展使用（如托盘菜单显示 frpc 运行状态）。
+ */
+export function SetTray(t: $models.Tray | null): $CancellablePromise<void> {
+    return $Call.ByID(335209399, t);
 }
 
 /**

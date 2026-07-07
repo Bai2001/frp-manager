@@ -80,6 +80,14 @@ export interface DomainCheckResult {
   reason: string
 }
 
+// 应用设置，对应后端 settings.Settings（snake_case 匹配 JSON tag）
+export interface Settings {
+  close_to_tray: boolean
+  auto_start: boolean
+  log_retention_days: number
+  config_dir: string
+}
+
 // 统一调用包装：v3 绑定方法返回 CancellablePromise，reject 时抛 Error。
 // Wails reject 的值可能是字符串、对象或 Error，统一规范化成带 message 的 Error。
 async function call<T>(fn: any, ...args: any[]): Promise<T> {
@@ -142,5 +150,25 @@ export const api = {
   },
   async isFrpcRunning(serverId: string): Promise<boolean> {
     return await call(AppService.IsFrpcRunning, serverId)
+  },
+
+  // 设置 / 配置目录 / 导入导出
+  async getSettings(): Promise<Settings> {
+    return await call(AppService.GetSettings)
+  },
+  async saveSettings(s: Settings): Promise<void> {
+    await call(AppService.SaveSettings, s)
+  },
+  async getConfigDir(): Promise<string> {
+    return await call(AppService.GetConfigDir)
+  },
+  async openConfigDir(): Promise<void> {
+    await call(AppService.OpenConfigDir)
+  },
+  async exportData(): Promise<string> {
+    return await call(AppService.ExportData)
+  },
+  async importData(raw: string): Promise<void> {
+    await call(AppService.ImportData, raw)
   },
 }

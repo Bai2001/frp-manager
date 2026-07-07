@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +12,8 @@ import (
 	"github.com/kdc/frp-manager/client/internal/agent"
 	"github.com/kdc/frp-manager/client/internal/db"
 	"github.com/kdc/frp-manager/client/internal/frpc"
+
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App 是暴露给前端的 Wails 应用对象。
@@ -33,9 +36,20 @@ func (a *App) startup(ctx context.Context) {
 }
 
 // Init 注入生产依赖（由 main.go 调用）。
+// 同时给 frpc.Manager 设置日志回调，把 frpc 进程输出转发为前端日志事件。
 func (a *App) Init(repo *db.Repo, frpcMgr *frpc.Manager) {
 	a.repo = repo
 	a.frpcMgr = frpcMgr
+	frpcMgr.SetLogCallback(func(serverID, line string) {
+		level := "info"
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "error") {
+			level = "error"
+		} else if strings.Contains(lower, "warn") {
+			level = "warn"
+		}
+		a.EmitLog(level, line, serverID)
+	})
 }
 
 // SetDatabase 注入生产环境的底层数据库连接（供退出时关闭）。
@@ -148,8 +162,49 @@ func (a *App) ListTunnels(serverId string) ([]TunnelInfo, error) {
 }
 
 // AddTunnel 添加映射，返回新 ID。
-// 生产实现应在此调用 agent 校验/分配端口或域名，本计划先落库，计划 3 补全在线分配。
+// 按 protocol 调用 agent 在线校验/分配端口或域名，失败则返回 error 不落库。
 func (a *App) AddTunnel(in AddTunnelInput) (string, error) {
+	ctx := context.Background()
+	cli, err := a.newAgentClient(in.ServerID)
+	if err != nil {
+		return "", err
+	}
+	switch in.Protocol {
+	case "tcp", "udp":
+		if in.RemotePort > 0 {
+			// 手动指定端口：检查可用性
+			res, err := cli.CheckPort(ctx, in.Protocol, in.RemotePort)
+			if err != nil {
+				return "", fmt.Errorf("检查端口: %w", err)
+			}
+			if !res.Available {
+				return "", fmt.Errorf("端口 %d 不可用: %s", in.RemotePort, res.Reason)
+			}
+		} else {
+			// 自动分配
+			port, err := cli.AllocatePort(ctx, in.Protocol)
+			if err != nil {
+				return "", fmt.Errorf("分配端口: %w", err)
+			}
+			in.RemotePort = port
+		}
+	case "http", "https":
+		domain := in.CustomDomain
+		if domain == "" {
+			domain = in.Subdomain
+		}
+		if domain == "" {
+			return "", fmt.Errorf("http/https 映射需提供 custom_domain 或 subdomain")
+		}
+		res, err := cli.CheckDomain(ctx, in.Protocol, domain)
+		if err != nil {
+			return "", fmt.Errorf("检查域名: %w", err)
+		}
+		if !res.Available {
+			return "", fmt.Errorf("域名 %s 不可用: %s", domain, res.Reason)
+		}
+	}
+
 	now := time.Now().UTC()
 	tu := db.Tunnel{
 		ID: uuid.NewString(), ServerID: in.ServerID, Name: in.Name, Protocol: in.Protocol,
@@ -160,7 +215,28 @@ func (a *App) AddTunnel(in AddTunnelInput) (string, error) {
 	if err := a.repo.InsertTunnel(tu); err != nil {
 		return "", err
 	}
+	// 落库成功后注册域名占用（http/https）
+	if in.Protocol == "http" || in.Protocol == "https" {
+		domain := in.CustomDomain
+		if domain == "" {
+			domain = in.Subdomain
+		}
+		_ = cli.RegisterDomain(ctx, in.Protocol, domain, tu.ID)
+	}
 	return tu.ID, nil
+}
+
+// EmitLog 向前端推送一条日志（通过 Wails 事件 log:append）。
+func (a *App) EmitLog(level, message, serverID string) {
+	if a.ctx == nil {
+		return
+	}
+	wailsruntime.EventsEmit(a.ctx, "log:append", map[string]string{
+		"time":      time.Now().UTC().Format(time.RFC3339),
+		"level":     level,
+		"message":   message,
+		"server_id": serverID,
+	})
 }
 
 // UpdateTunnelByID 按 ID 更新映射。
@@ -244,13 +320,18 @@ func (a *App) GenerateFrpcConfig(serverId string) (string, error) {
 	return a.frpcMgr.Generate(cfg)
 }
 
-// StartFrpc 启动指定服务器的 frpc 进程。
+// StartFrpc 启动指定服务器的 frpc 进程，并转发其输出为日志事件。
 func (a *App) StartFrpc(serverId string) error {
 	cfgText, err := a.GenerateFrpcConfig(serverId)
 	if err != nil {
 		return err
 	}
-	return a.frpcMgr.Start(context.Background(), serverId, cfgText)
+	if err := a.frpcMgr.Start(context.Background(), serverId, cfgText); err != nil {
+		a.EmitLog("error", "启动 frpc 失败: "+err.Error(), serverId)
+		return err
+	}
+	a.EmitLog("info", "frpc 已启动", serverId)
+	return nil
 }
 
 // StopFrpc 停止指定服务器的 frpc 进程。

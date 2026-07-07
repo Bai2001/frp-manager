@@ -1,10 +1,13 @@
 <script lang="ts" setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { EventsOn } from '../wailsjs/runtime/runtime'
+import { useLogStore } from '@/stores/log'
 
 const route = useRoute()
 const router = useRouter()
 const active = computed(() => route.path)
+const logStore = useLogStore()
 
 const menus = [
   { index: '/servers', label: '服务器', icon: 'Connection' },
@@ -12,6 +15,18 @@ const menus = [
   { index: '/logs', label: '日志', icon: 'Document' },
   { index: '/settings', label: '设置', icon: 'Setting' },
 ]
+
+onMounted(() => {
+  // 绑定后端 EventsEmit 的 log:append 事件
+  EventsOn('log:append', (line: any) => {
+    logStore.append({
+      time: line.time ?? new Date().toISOString(),
+      level: line.level ?? 'info',
+      message: line.message ?? '',
+      server_id: line.server_id,
+    })
+  })
+})
 </script>
 
 <template>

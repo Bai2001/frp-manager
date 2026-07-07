@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,6 +18,36 @@ func newTestApp(t *testing.T) *App {
 	}
 	t.Cleanup(a.Close)
 	return a
+}
+
+// newMockAgent 启动一个 mock agent HTTP 服务，处理端口/域名校验与注册。
+// 返回 base URL，供测试 server 的 agent_url 使用。
+func newMockAgent(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/ports/check":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"protocol":  r.URL.Query().Get("protocol"),
+				"port":      20389,
+				"available": true,
+				"reason":    "available",
+			})
+		case "/api/domains/check":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"domain":    "app.example.com",
+				"available": true,
+				"reason":    "available",
+			})
+		case "/api/domains/register", "/api/domains/release",
+			"/api/ports/allocate", "/api/ports/release":
+			_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
 }
 
 func TestAddAndListServers(t *testing.T) {
@@ -40,7 +73,8 @@ func TestAddAndListServers(t *testing.T) {
 
 func TestAddAndListTunnels(t *testing.T) {
 	a := newTestApp(t)
-	sid, _ := a.AddServer(AddServerInput{Name: "p", Host: "h", FrpsPort: 7000, FrpToken: "t", AgentURL: "u", AgentToken: "a"})
+	agentURL := newMockAgent(t)
+	sid, _ := a.AddServer(AddServerInput{Name: "p", Host: "h", FrpsPort: 7000, FrpToken: "t", AgentURL: agentURL, AgentToken: "a"})
 	tid, err := a.AddTunnel(AddTunnelInput{
 		ServerID: sid, Name: "rdp", Protocol: "tcp",
 		LocalIP: "127.0.0.1", LocalPort: 3389, RemotePort: 20389,
@@ -62,7 +96,8 @@ func TestAddAndListTunnels(t *testing.T) {
 
 func TestGenerateFrpcConfig(t *testing.T) {
 	a := newTestApp(t)
-	sid, _ := a.AddServer(AddServerInput{Name: "p", Host: "1.2.3.4", FrpsPort: 7000, FrpToken: "tok", AgentURL: "u", AgentToken: "a"})
+	agentURL := newMockAgent(t)
+	sid, _ := a.AddServer(AddServerInput{Name: "p", Host: "1.2.3.4", FrpsPort: 7000, FrpToken: "tok", AgentURL: agentURL, AgentToken: "a"})
 	_, _ = a.AddTunnel(AddTunnelInput{ServerID: sid, Name: "rdp", Protocol: "tcp", LocalIP: "127.0.0.1", LocalPort: 3389, RemotePort: 20389})
 	out, err := a.GenerateFrpcConfig(sid)
 	if err != nil {

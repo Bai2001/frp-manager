@@ -1,8 +1,10 @@
 package frpc
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +19,7 @@ type Manager struct {
 	binary       string
 	args         []string
 	appendConfig bool // 是否在 args 末尾追加配置文件路径（真实 frpc 用 -c <path>，测试替身无需追加）
+	logCb        func(serverID, line string)
 }
 
 // NewManager 创建进程管理器，configDir 用于存放每个 server 的 frpc.toml。
@@ -36,6 +39,12 @@ func (m *Manager) SetBinary(name string, args ...string) {
 	m.binary = name
 	m.args = args
 	m.appendConfig = false
+}
+
+// SetLogCallback 设置日志回调，每次 frpc 输出一行调用一次。
+// 未设置（nil）时 Start 走原路径不创建 pipe，保证既有测试兼容。
+func (m *Manager) SetLogCallback(cb func(serverID, line string)) {
+	m.logCb = cb
 }
 
 // Generate 委托给包级 Generate 函数。
@@ -62,12 +71,33 @@ func (m *Manager) Start(ctx context.Context, serverID, cfgText string) error {
 		args = append(args, cfgPath)
 	}
 	cmd := exec.CommandContext(ctx, m.binary, args...)
+	// 仅在设置了日志回调时才创建 stdout/stderr pipe，否则走原路径（兼容既有测试替身）。
+	if m.logCb != nil {
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return fmt.Errorf("stdout pipe: %w", err)
+		}
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			return fmt.Errorf("stderr pipe: %w", err)
+		}
+		go scanLines(stdout, serverID, m.logCb)
+		go scanLines(stderr, serverID, m.logCb)
+	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("启动 frpc: %w", err)
 	}
 	m.procs[serverID] = cmd
 	go func() { _ = cmd.Wait() }()
 	return nil
+}
+
+// scanLines 按行读取 r 并通过 cb 推送。
+func scanLines(r io.Reader, serverID string, cb func(serverID, line string)) {
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		cb(serverID, sc.Text())
+	}
 }
 
 // Stop 终止指定 server 的 frpc 进程。

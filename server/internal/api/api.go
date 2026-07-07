@@ -43,7 +43,7 @@ func NewTestServer(t *testing.T, cfg *config.Config) *Server {
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
-	f := frps.NewManager(cfg.Frps.Config, cfg.Frps.Binary)
+	f := frps.NewManager(cfg.Frps.Config)
 	frpCfg, _ := f.Config()
 	p := portpool.NewManager(st, frpCfg)
 	d := domain.NewManager(st, &cfg.Domain)
@@ -126,22 +126,22 @@ func (s *Server) capabilities(w http.ResponseWriter, _ *http.Request) {
 	resp := CapabilitiesResponse{
 		BindPort:           cfg.BindPort,
 		FrpsRunning:        st != nil && st.Running,
+		FrpsVersion:        st.Version,
 		SupportTCP:         true,
 		SupportUDP:         true,
-		SupportHTTP:        cfg.VhostHTTPPort != nil,
-		SupportHTTPS:       cfg.VhostHTTPSPort != nil,
+		SupportHTTP:        cfg.VhostHTTPPort != 0,
+		SupportHTTPS:       cfg.VhostHTTPSPort != 0,
+		VhostHTTPPort:      cfg.VhostHTTPPort,
+		VhostHTTPSPort:     cfg.VhostHTTPSPort,
 		SubdomainHost:      cfg.SubDomainHost,
 		AllowedRootDomains: s.cfg.Domain.AllowedRootDomains,
 	}
-	if cfg.VhostHTTPPort != nil {
-		resp.VhostHTTPPort = *cfg.VhostHTTPPort
-	}
-	if cfg.VhostHTTPSPort != nil {
-		resp.VhostHTTPSPort = *cfg.VhostHTTPSPort
-	}
-	for _, ap := range cfg.AllowPorts {
-		if ap.Start != 0 && ap.End != 0 {
-			resp.AllowPorts = append(resp.AllowPorts, AllowPortRange{Start: ap.Start, End: ap.End})
+	for _, pr := range cfg.AllowPorts {
+		if pr.Start != 0 && pr.End != 0 {
+			resp.AllowPorts = append(resp.AllowPorts, AllowPortRange{Start: pr.Start, End: pr.End})
+		}
+		if pr.Single != 0 {
+			resp.AllowPorts = append(resp.AllowPorts, AllowPortRange{Start: pr.Single, End: pr.Single})
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)

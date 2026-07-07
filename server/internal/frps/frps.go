@@ -1,10 +1,10 @@
-// Package frps 负责 frps 进程管理、状态检测与配置读取。
+// Package frps 内嵌 frps 服务并管理其生命周期。
 package frps
 
 import (
 	"context"
 
-	"github.com/kdc/frp-manager/server/internal/frpsc"
+	v1 "github.com/fatedier/frp/pkg/config/v1"
 )
 
 // Status 描述 frps 当前状态。
@@ -19,7 +19,7 @@ type Status struct {
 // 保留接口便于未来 mock；当前所有使用方直接用 *Manager 结构体。
 type ManagerIface interface {
 	Status(ctx context.Context) (*Status, error)
-	Config() (*frpsc.Config, error)
+	Config() (*v1.ServerConfig, error)
 	ConfigPath() string
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error

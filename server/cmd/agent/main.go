@@ -16,6 +16,9 @@ import (
 
 	"github.com/kdc/frp-manager/server/internal/api"
 	"github.com/kdc/frp-manager/server/internal/config"
+	"github.com/kdc/frp-manager/server/internal/domain"
+	"github.com/kdc/frp-manager/server/internal/frps"
+	"github.com/kdc/frp-manager/server/internal/portpool"
 	"github.com/kdc/frp-manager/server/internal/store"
 )
 
@@ -28,14 +31,30 @@ func main() {
 		log.Fatalf("加载配置失败: %v", err)
 	}
 
-	// 初始化 SQLite（骨架阶段打开即可，store 句柄后续注入 api.Server）
+	// 初始化 SQLite
 	db, err := store.Open(cfg.Server.Database)
 	if err != nil {
 		log.Fatalf("初始化数据库失败: %v", err)
 	}
 	defer func() { _ = db.Close() }()
 
-	apiSrv := api.New(cfg)
+	st, err := store.NewStore(db)
+	if err != nil {
+		log.Fatalf("创建 store 失败: %v", err)
+	}
+
+	// frps 管理（解析配置、检测状态）
+	frpsMgr := frps.NewManager(cfg.Frps.Config, cfg.Frps.Binary)
+	frpCfg, err := frpsMgr.Config()
+	if err != nil {
+		log.Printf("警告: 解析 frps 配置失败（capabilities 将返回不完整）: %v", err)
+	}
+
+	// 端口池与域名管理
+	portsMgr := portpool.NewManager(st, frpCfg)
+	domainMgr := domain.NewManager(st, &cfg.Domain)
+
+	apiSrv := api.New(cfg, st, frpsMgr, portsMgr, domainMgr)
 	httpSrv := &http.Server{
 		Addr:              cfg.Server.Addr,
 		Handler:           apiSrv.Router(),

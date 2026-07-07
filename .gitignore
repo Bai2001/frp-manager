@@ -14,7 +14,6 @@ vendor/
 node_modules/
 frontend/dist/
 client/frontend/dist/
-client/build/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -23,9 +22,8 @@ pnpm-debug.log*
 
 # Wails
 client/build/bin/
-client/build/windows/
-client/build/darwin/
-client/build/linux/
+# v3 构建脚本生成产物（bootstrapper 由 wails3 generate 生成，不入库）
+client/build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 *.syso
 wails-vfs.dat
 

@@ -1,11 +1,10 @@
 package frps
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/kdc/frp-manager/server/internal/frpsc"
 )
 
 func writeFrpsToml(t *testing.T, body string) string {
@@ -17,9 +16,8 @@ func writeFrpsToml(t *testing.T, body string) string {
 	return p
 }
 
-func TestStatus_ConfigParsed(t *testing.T) {
-	p := writeFrpsToml(t, `
-bindPort = 7000
+func TestConfig(t *testing.T) {
+	p := writeFrpsToml(t, `bindPort = 7000
 vhostHTTPPort = 80
 vhostHTTPSPort = 443
 subDomainHost = "frp.example.com"
@@ -31,23 +29,7 @@ token = "tok"
 start = 10000
 end = 60000
 `)
-	m := NewManager(p, "")
-	st, err := m.Status(nil)
-	if err != nil {
-		t.Fatalf("Status: %v", err)
-	}
-	// 没有 frps 进程时 Running 为 false，但配置应能解析
-	if st.Running {
-		t.Errorf("Running = true, want false (无真实 frps 进程)")
-	}
-	if st.BindPort != 7000 {
-		t.Errorf("BindPort = %d, want 7000", st.BindPort)
-	}
-}
-
-func TestConfig(t *testing.T) {
-	p := writeFrpsToml(t, "bindPort = 7000\n"+"vhostHTTPPort = 80\n")
-	m := NewManager(p, "")
+	m := NewManager(p)
 	cfg, err := m.Config()
 	if err != nil {
 		t.Fatalf("Config: %v", err)
@@ -55,22 +37,38 @@ func TestConfig(t *testing.T) {
 	if cfg.BindPort != 7000 {
 		t.Errorf("BindPort = %d", cfg.BindPort)
 	}
-	if cfg.VhostHTTPPort == nil || *cfg.VhostHTTPPort != 80 {
-		t.Errorf("VhostHTTPPort = %+v", cfg.VhostHTTPPort)
+	if cfg.VhostHTTPPort != 80 {
+		t.Errorf("VhostHTTPPort = %d", cfg.VhostHTTPPort)
 	}
-	_ = cfg // 也用于断言类型为 *frpsc.Config
+	if cfg.SubDomainHost != "frp.example.com" {
+		t.Errorf("SubDomainHost = %q", cfg.SubDomainHost)
+	}
+	if cfg.Auth.Token != "tok" {
+		t.Errorf("Auth.Token = %q", cfg.Auth.Token)
+	}
+	if len(cfg.AllowPorts) != 1 || cfg.AllowPorts[0].Start != 10000 || cfg.AllowPorts[0].End != 60000 {
+		t.Errorf("AllowPorts = %+v", cfg.AllowPorts)
+	}
 }
 
-func TestStatus_MissingConfig(t *testing.T) {
-	m := NewManager(filepath.Join(t.TempDir(), "nope.toml"), "")
-	st, err := m.Status(nil)
-	if err == nil {
+func TestStatus_NotRunning(t *testing.T) {
+	p := writeFrpsToml(t, `bindPort = 7000`)
+	m := NewManager(p)
+	st, err := m.Status(context.Background())
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if st.Running {
+		t.Errorf("Running = true, want false（无真实 frps 监听 7000）")
+	}
+	if st.BindPort != 7000 {
+		t.Errorf("BindPort = %d", st.BindPort)
+	}
+}
+
+func TestConfig_MissingFile(t *testing.T) {
+	m := NewManager(filepath.Join(t.TempDir(), "nope.toml"))
+	if _, err := m.Config(); err == nil {
 		t.Fatal("缺失配置应返回 error")
 	}
-	if st != nil {
-		t.Errorf("err 时 st 应为 nil")
-	}
 }
-
-// 确保返回的 Config 类型是 *frpsc.Config
-var _ = func() *frpsc.Config { var m *Manager; _, _ = m.Config(); return nil }

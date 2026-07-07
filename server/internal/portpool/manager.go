@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	v1 "github.com/fatedier/frp/pkg/config/v1"
 
-	"github.com/kdc/frp-manager/server/internal/frpsc"
 	"github.com/kdc/frp-manager/server/internal/portprobe"
 	"github.com/kdc/frp-manager/server/internal/store"
 )
@@ -16,18 +16,18 @@ import (
 // Manager 是端口池的真实实现。
 type Manager struct {
 	store  *store.Store
-	frpCfg *frpsc.Config
+	frpCfg *v1.ServerConfig
 }
 
 // NewManager 创建端口池管理器。
 // frpCfg 用于读取 allowPorts 范围；为 nil 表示不限制。
-func NewManager(s *store.Store, frpCfg *frpsc.Config) *Manager {
+func NewManager(s *store.Store, frpCfg *v1.ServerConfig) *Manager {
 	return &Manager{store: s, frpCfg: frpCfg}
 }
 
 // Check 检查指定端口是否可用：范围 + 已分配 + 本地监听探测。
 func (m *Manager) Check(_ context.Context, p Protocol, port int) (*CheckResult, error) {
-	if m.frpCfg != nil && !m.frpCfg.IsPortAllowed(port) {
+	if !m.isPortAllowed(port) {
 		return &CheckResult{Protocol: p, Port: port, Available: false, Reason: "out_of_allow_ports"}, nil
 	}
 	pa, err := m.store.GetPortAllocation(string(p), port)
@@ -112,17 +112,35 @@ func (m *Manager) ListAllocated(p Protocol) ([]int, error) {
 
 type portRange struct{ start, end int }
 
+// isPortAllowed 判断 port 是否落在 allowPorts 范围内。
+// 若 allowPorts 为空表示不限制（与 frps 行为一致）。
+// types.PortsRange 支持两种写法：范围用 Start/End，单端口用 Single。
+func (m *Manager) isPortAllowed(port int) bool {
+	if m.frpCfg == nil || len(m.frpCfg.AllowPorts) == 0 {
+		return true
+	}
+	for _, pr := range m.frpCfg.AllowPorts {
+		if pr.Start != 0 && pr.End != 0 && port >= pr.Start && port <= pr.End {
+			return true
+		}
+		if pr.Single != 0 && port == pr.Single {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Manager) allowRanges() []portRange {
 	if m.frpCfg == nil || len(m.frpCfg.AllowPorts) == 0 {
 		return []portRange{{0, 65535}}
 	}
 	var out []portRange
-	for _, ap := range m.frpCfg.AllowPorts {
-		if ap.Single != nil {
-			out = append(out, portRange{*ap.Single, *ap.Single})
+	for _, pr := range m.frpCfg.AllowPorts {
+		if pr.Start != 0 && pr.End != 0 {
+			out = append(out, portRange{pr.Start, pr.End})
 		}
-		if ap.Start != 0 && ap.End != 0 {
-			out = append(out, portRange{ap.Start, ap.End})
+		if pr.Single != 0 {
+			out = append(out, portRange{pr.Single, pr.Single})
 		}
 	}
 	return out

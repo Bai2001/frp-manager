@@ -4,7 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kdc/frp-manager/server/internal/frpsc"
+	v1 "github.com/fatedier/frp/pkg/config/v1"
+	"github.com/fatedier/frp/pkg/config/types"
+
 	"github.com/kdc/frp-manager/server/internal/store"
 )
 
@@ -19,9 +21,9 @@ func newManager(t *testing.T) *Manager {
 	if err != nil {
 		t.Fatal(err)
 	}
-	frpCfg := &frpsc.Config{
+	frpCfg := &v1.ServerConfig{
 		BindPort:   7000,
-		AllowPorts: []frpsc.AllowPort{{Start: 20000, End: 20100}},
+		AllowPorts: []types.PortsRange{{Start: 20000, End: 20100}},
 	}
 	return NewManager(s, frpCfg)
 }
@@ -84,7 +86,7 @@ func TestAllocate_Exhausted(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	s, _ := store.NewStore(db)
-	frpCfg := &frpsc.Config{AllowPorts: []frpsc.AllowPort{{Start: 20000, End: 20000}}}
+	frpCfg := &v1.ServerConfig{AllowPorts: []types.PortsRange{{Start: 20000, End: 20000}}}
 	m := NewManager(s, frpCfg)
 	_, err = m.Allocate(nil, TCP)
 	if err != nil {

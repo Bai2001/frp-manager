@@ -43,8 +43,8 @@ func main() {
 		log.Fatalf("创建 store 失败: %v", err)
 	}
 
-	// frps 管理（解析配置、检测状态）
-	frpsMgr := frps.NewManager(cfg.Frps.Config, cfg.Frps.Binary)
+	// frps 管理（解析配置、检测状态、内嵌启停）
+	frpsMgr := frps.NewManager(cfg.Frps.Config)
 	frpCfg, err := frpsMgr.Config()
 	if err != nil {
 		log.Printf("警告: 解析 frps 配置失败（capabilities 将返回不完整）: %v", err)

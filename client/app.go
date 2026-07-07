@@ -10,16 +10,18 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/kdc/frp-manager/client/internal/agent"
+	"github.com/kdc/frp-manager/client/internal/config"
 	"github.com/kdc/frp-manager/client/internal/db"
 	"github.com/kdc/frp-manager/client/internal/frpc"
 
 	v1 "github.com/fatedier/frp/pkg/config/v1"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // App 是暴露给前端的 Wails 应用对象。
-// 所有前端通过 window.go 调用的方法都挂在 App 上。
+// 所有前端通过 v3 自动生成的 bindings 调用的方法都挂在 App 上。
 type App struct {
+	app      *application.App
 	ctx      context.Context
 	database *sql.DB
 	repo     *db.Repo
@@ -31,17 +33,33 @@ func NewApp() *App {
 	return &App{}
 }
 
-// startup 在应用启动时由 Wails 调用。
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
+// SetApplication 注入 Wails v3 应用实例（由 main.go 在 application.New 后回填）。
+// 供 EmitLog 等通过 app.Event.Emit 推送事件到前端。
+func (a *App) SetApplication(app *application.App) {
+	a.app = app
 }
 
-// Init 注入生产依赖（由 main.go 调用）。
-// 同时给 frpc.Manager 设置日志回调，把 frpc 进程输出转发为前端日志事件。
-func (a *App) Init(repo *db.Repo, frpcMgr *frpc.Manager) {
+// ServiceStartup 在应用启动时由 Wails v3 调用。
+// 初始化 db/repo/frpcMgr，返回 error 可中断启动。
+func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+	a.ctx = ctx
+	dbPath, err := config.DefaultDBPath()
+	if err != nil {
+		return fmt.Errorf("获取默认 DB 路径: %w", err)
+	}
+	database, err := db.Open(dbPath)
+	if err != nil {
+		return fmt.Errorf("打开客户端数据库: %w", err)
+	}
+	repo, err := db.NewRepo(database)
+	if err != nil {
+		_ = database.Close()
+		return fmt.Errorf("初始化 db repo: %w", err)
+	}
+	a.database = database
 	a.repo = repo
-	a.frpcMgr = frpcMgr
-	frpcMgr.SetLogCallback(func(serverID, line string) {
+	a.frpcMgr = frpc.NewManager()
+	a.frpcMgr.SetLogCallback(func(serverID, line string) {
 		level := "info"
 		lower := strings.ToLower(line)
 		if strings.Contains(lower, "error") {
@@ -51,14 +69,18 @@ func (a *App) Init(repo *db.Repo, frpcMgr *frpc.Manager) {
 		}
 		a.EmitLog(level, line, serverID)
 	})
+	return nil
 }
 
-// SetDatabase 注入生产环境的底层数据库连接（供退出时关闭）。
-func (a *App) SetDatabase(d *sql.DB) {
-	a.database = d
+// ServiceShutdown 在应用退出时由 Wails v3 调用，释放数据库连接。
+func (a *App) ServiceShutdown() error {
+	if a.database != nil {
+		return a.database.Close()
+	}
+	return nil
 }
 
-// InitForTest 注入测试依赖。
+// InitForTest 注入测试依赖，不经过 Wails 运行时。
 func (a *App) InitForTest(dbPath string) error {
 	d, err := db.Open(dbPath)
 	if err != nil {
@@ -66,6 +88,7 @@ func (a *App) InitForTest(dbPath string) error {
 	}
 	r, err := db.NewRepo(d)
 	if err != nil {
+		_ = d.Close()
 		return err
 	}
 	a.database = d
@@ -74,7 +97,8 @@ func (a *App) InitForTest(dbPath string) error {
 	return nil
 }
 
-// Close 释放 App 持有的资源（如数据库连接），供测试清理或应用退出调用。
+// Close 释放 App 持有的资源（供测试清理调用）。
+// 生产环境由 ServiceShutdown 负责。
 func (a *App) Close() {
 	if a.database != nil {
 		_ = a.database.Close()
@@ -227,12 +251,12 @@ func (a *App) AddTunnel(in AddTunnelInput) (string, error) {
 	return tu.ID, nil
 }
 
-// EmitLog 向前端推送一条日志（通过 Wails 事件 log:append）。
+// EmitLog 向前端推送一条日志（通过 Wails v3 事件 log:append）。
 func (a *App) EmitLog(level, message, serverID string) {
-	if a.ctx == nil {
+	if a.app == nil {
 		return
 	}
-	wailsruntime.EventsEmit(a.ctx, "log:append", map[string]string{
+	a.app.Event.Emit("log:append", map[string]string{
 		"time":      time.Now().UTC().Format(time.RFC3339),
 		"level":     level,
 		"message":   message,
@@ -370,9 +394,9 @@ func toServerInfo(s db.Server) ServerInfo {
 
 func toTunnelInfo(tu db.Tunnel) TunnelInfo {
 	return TunnelInfo{
-		ID:       tu.ID, ServerID: tu.ServerID, Name: tu.Name, Protocol: tu.Protocol,
-		LocalIP:   tu.LocalIP, LocalPort: tu.LocalPort, RemotePort: tu.RemotePort,
+		ID: tu.ID, ServerID: tu.ServerID, Name: tu.Name, Protocol: tu.Protocol,
+		LocalIP: tu.LocalIP, LocalPort: tu.LocalPort, RemotePort: tu.RemotePort,
 		CustomDomain: tu.CustomDomain, Subdomain: tu.Subdomain,
-		Enabled:   tu.Enabled, Status: tu.Status,
+		Enabled: tu.Enabled, Status: tu.Status,
 	}
 }

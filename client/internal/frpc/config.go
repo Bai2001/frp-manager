@@ -1,86 +1,104 @@
+// Package frpc 内嵌 frpc 服务的配置构造与序列化辅助。
+//
+// 这里不再自写 frpc.toml 的结构（Config/Auth/Proxy/Generate 已删除）,
+// 改用 frp 官方 v1.* 类型直接构造配置对象，传给内嵌 client.Service;
+// MarshalConfig 仅用于"查看配置"功能，把 v1 对象序列化为 frpc.toml 文本。
 package frpc
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+
+	v1 "github.com/fatedier/frp/pkg/config/v1"
 )
 
-// Config 是 frpc.toml 的完整结构。
-// Auth 是嵌套 [auth] 表，避免点路径 tag 导致的 toml 写入问题。
-type Config struct {
-	ServerAddr string  `toml:"serverAddr"`
-	ServerPort int     `toml:"serverPort"`
-	Auth       Auth    `toml:"auth"`
-	Proxies    []Proxy `toml:"proxies"`
+// BuildClientConfig 根据 server 信息构造 frpc 客户端配置对象。
+// Auth.Method 使用 token 方式，Token 直接写入。
+func BuildClientConfig(serverAddr string, serverPort int, token string) *v1.ClientCommonConfig {
+	cfg := &v1.ClientCommonConfig{
+		ServerAddr: serverAddr,
+		ServerPort: serverPort,
+	}
+	cfg.Auth.Method = v1.AuthMethodToken
+	cfg.Auth.Token = token
+	return cfg
 }
 
-// Auth 对应 [auth] 表。
-type Auth struct {
-	Method string `toml:"method,omitempty"`
-	Token  string `toml:"token,omitempty"`
+// BuildProxy 根据 tunnel 信息构造一个 v1.ProxyConfigurer。
+// protocol 支持 tcp/udp/http/https；remotePort 仅 tcp/udp 使用；
+// customDomain/subdomain 仅 http/https 使用。
+func BuildProxy(name, protocol, localIP string, localPort int, remotePort int, customDomain, subdomain string) (v1.ProxyConfigurer, error) {
+	base := v1.ProxyBaseConfig{
+		Name: name,
+		Type: protocol,
+		ProxyBackend: v1.ProxyBackend{
+			LocalIP:   localIP,
+			LocalPort: localPort,
+		},
+	}
+	switch protocol {
+	case "tcp":
+		return &v1.TCPProxyConfig{ProxyBaseConfig: base, RemotePort: remotePort}, nil
+	case "udp":
+		return &v1.UDPProxyConfig{ProxyBaseConfig: base, RemotePort: remotePort}, nil
+	case "http":
+		c := &v1.HTTPProxyConfig{ProxyBaseConfig: base}
+		if customDomain != "" {
+			c.CustomDomains = []string{customDomain}
+		}
+		if subdomain != "" {
+			c.SubDomain = subdomain
+		}
+		return c, nil
+	case "https":
+		c := &v1.HTTPSProxyConfig{ProxyBaseConfig: base}
+		if customDomain != "" {
+			c.CustomDomains = []string{customDomain}
+		}
+		if subdomain != "" {
+			c.SubDomain = subdomain
+		}
+		return c, nil
+	default:
+		return nil, fmt.Errorf("不支持的协议 %s", protocol)
+	}
 }
 
-// Proxy 对应 [[proxies]] 段。
-type Proxy struct {
-	Name          string   `toml:"name"`
-	Type          string   `toml:"type"`
-	LocalIP       string   `toml:"localIP"`
-	LocalPort     int      `toml:"localPort"`
-	RemotePort    int      `toml:"remotePort,omitempty"`
-	CustomDomains []string `toml:"customDomains,omitempty"`
-	Subdomain     string   `toml:"subdomain,omitempty"`
-}
-
-// Generate 把 Config 序列化为 frpc.toml 文本。
-// 空的 Proxies 不会输出 [[proxies]] 段。
-// go-toml/v2 默认对纯 ASCII 字符串输出单引号字面量，frpc.toml 约定用双引号，
-// 这里把值里的单引号字符串统一转换为双引号基本字符串（值内不含单引号字符，转换安全）。
-func Generate(cfg *Config) (string, error) {
+// MarshalConfig 把 v1 配置序列化为 frpc.toml 文本（用于"查看配置"功能）。
+// v1 类型的 json tag 与 toml 字段名一致（都是 camelCase），通过 json 中转再 toml 编码。
+func MarshalConfig(common *v1.ClientCommonConfig, proxies []v1.ProxyConfigurer) (string, error) {
+	out := map[string]any{
+		"serverAddr": common.ServerAddr,
+		"serverPort": common.ServerPort,
+		"auth":       map[string]string{"method": string(common.Auth.Method), "token": common.Auth.Token},
+	}
+	if len(proxies) > 0 {
+		arr := make([]map[string]any, 0, len(proxies))
+		for _, p := range proxies {
+			arr = append(arr, proxyConfigurerToMap(p))
+		}
+		out["proxies"] = arr
+	}
 	var buf bytes.Buffer
 	enc := toml.NewEncoder(&buf)
-	enc.SetIndentSymbol("  ")
-	if err := enc.Encode(cfg); err != nil {
+	if err := enc.Encode(out); err != nil {
 		return "", fmt.Errorf("序列化 frpc.toml: %w", err)
 	}
-	return quoteAsDouble(buf.String()), nil
+	return buf.String(), nil
 }
 
-// quoteAsDouble 把 toml 输出里的单引号字面量字符串转为双引号基本字符串。
-// 仅替换形如 'xxx' 的成对单引号；值内不含单引号字符，故简单替换安全。
-func quoteAsDouble(s string) string {
-	lines := strings.Split(s, "\n")
-	for i, ln := range lines {
-		lines[i] = convertLineQuotes(ln)
-	}
-	return strings.Join(lines, "\n")
-}
-
-// convertLineQuotes 处理单行：找到 'xxx' 形式替换为 "xxx"。
-// 一行最多一个键值对，左右各一个单引号，直接替换首尾单引号。
-func convertLineQuotes(ln string) string {
-	trimmed := strings.TrimSpace(ln)
-	// 跳过表头/数组段 [xxx] [[xxx]]
-	if strings.HasPrefix(trimmed, "[") || trimmed == "" {
-		return ln
-	}
-	// 找到等号后的值
-	eq := strings.Index(ln, "=")
-	if eq == -1 {
-		return ln
-	}
-	rest := ln[eq+1:]
-	// 值部分形如 ' xxx'（可能有空格），定位单引号
-	first := strings.Index(rest, "'")
-	if first == -1 {
-		return ln
-	}
-	last := strings.LastIndex(rest, "'")
-	if last <= first {
-		return ln
-	}
-	// 替换为首尾双引号
-	return ln[:eq+1] + rest[:first] + "\"" + rest[first+1:last] + "\"" + rest[last+1:]
+// proxyConfigurerToMap 把 ProxyConfigurer 转成 map，便于 toml 编码。
+// v1 类型的 json tag 是 camelCase，与 toml 字段名一致，故用 json 中转。
+// 使用 json.Number 保留数字精度，避免 int 经 interface{} 被转成 float64
+// 导致 toml 输出 "3389.0" 这样的带小数点数字。
+func proxyConfigurerToMap(p v1.ProxyConfigurer) map[string]any {
+	b, _ := json.Marshal(p)
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	var m map[string]any
+	_ = dec.Decode(&m)
+	return m
 }

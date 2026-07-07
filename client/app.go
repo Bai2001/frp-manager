@@ -13,6 +13,7 @@ import (
 	"github.com/kdc/frp-manager/client/internal/db"
 	"github.com/kdc/frp-manager/client/internal/frpc"
 
+	v1 "github.com/fatedier/frp/pkg/config/v1"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -58,7 +59,7 @@ func (a *App) SetDatabase(d *sql.DB) {
 }
 
 // InitForTest 注入测试依赖。
-func (a *App) InitForTest(dbPath, frpcConfigDir string) error {
+func (a *App) InitForTest(dbPath string) error {
 	d, err := db.Open(dbPath)
 	if err != nil {
 		return err
@@ -69,7 +70,7 @@ func (a *App) InitForTest(dbPath, frpcConfigDir string) error {
 	}
 	a.database = d
 	a.repo = r
-	a.frpcMgr = frpc.NewManager(frpcConfigDir)
+	a.frpcMgr = frpc.NewManager()
 	return nil
 }
 
@@ -282,51 +283,48 @@ func (a *App) releaseServerResource(cli *agent.Client, tu db.Tunnel) {
 	}
 }
 
-// GenerateFrpcConfig 根据指定服务器的映射生成 frpc.toml 内容。
-func (a *App) GenerateFrpcConfig(serverId string) (string, error) {
+// buildFrpcConfig 根据 server 及其启用的 tunnel 构造 frpc 配置对象。
+// 返回 common 与 proxies，供 GenerateFrpcConfig/StartFrpc/RestartFrpc 共用。
+func (a *App) buildFrpcConfig(serverId string) (*v1.ClientCommonConfig, []v1.ProxyConfigurer, error) {
 	s, err := a.repo.GetServer(serverId)
 	if err != nil {
-		return "", fmt.Errorf("服务器不存在: %w", err)
+		return nil, nil, fmt.Errorf("服务器不存在: %w", err)
 	}
 	tunnels, err := a.repo.ListTunnelsByServer(serverId)
 	if err != nil {
-		return "", err
+		return nil, nil, err
 	}
-	cfg := &frpc.Config{
-		ServerAddr: s.Host,
-		ServerPort: s.FrpsPort,
-		Auth:       frpc.Auth{Method: "token", Token: s.FrpToken},
-	}
+	common := frpc.BuildClientConfig(s.Host, s.FrpsPort, s.FrpToken)
+	var proxies []v1.ProxyConfigurer
 	for _, tu := range tunnels {
 		if !tu.Enabled {
 			continue
 		}
-		p := frpc.Proxy{
-			Name: tu.Name, Type: tu.Protocol,
-			LocalIP: tu.LocalIP, LocalPort: tu.LocalPort,
+		p, err := frpc.BuildProxy(tu.Name, tu.Protocol, tu.LocalIP, tu.LocalPort, tu.RemotePort, tu.CustomDomain, tu.Subdomain)
+		if err != nil {
+			return nil, nil, err
 		}
-		switch tu.Protocol {
-		case "tcp", "udp":
-			p.RemotePort = tu.RemotePort
-		case "http", "https":
-			if tu.CustomDomain != "" {
-				p.CustomDomains = []string{tu.CustomDomain}
-			} else if tu.Subdomain != "" {
-				p.Subdomain = tu.Subdomain
-			}
-		}
-		cfg.Proxies = append(cfg.Proxies, p)
+		proxies = append(proxies, p)
 	}
-	return a.frpcMgr.Generate(cfg)
+	return common, proxies, nil
+}
+
+// GenerateFrpcConfig 根据指定服务器的映射生成 frpc.toml 内容。
+func (a *App) GenerateFrpcConfig(serverId string) (string, error) {
+	common, proxies, err := a.buildFrpcConfig(serverId)
+	if err != nil {
+		return "", err
+	}
+	return frpc.MarshalConfig(common, proxies)
 }
 
 // StartFrpc 启动指定服务器的 frpc 进程，并转发其输出为日志事件。
 func (a *App) StartFrpc(serverId string) error {
-	cfgText, err := a.GenerateFrpcConfig(serverId)
+	common, proxies, err := a.buildFrpcConfig(serverId)
 	if err != nil {
 		return err
 	}
-	if err := a.frpcMgr.Start(context.Background(), serverId, cfgText); err != nil {
+	if err := a.frpcMgr.Start(context.Background(), serverId, common, proxies); err != nil {
 		a.EmitLog("error", "启动 frpc 失败: "+err.Error(), serverId)
 		return err
 	}
@@ -341,11 +339,11 @@ func (a *App) StopFrpc(serverId string) error {
 
 // RestartFrpc 重启指定服务器的 frpc 进程。
 func (a *App) RestartFrpc(serverId string) error {
-	cfgText, err := a.GenerateFrpcConfig(serverId)
+	common, proxies, err := a.buildFrpcConfig(serverId)
 	if err != nil {
 		return err
 	}
-	return a.frpcMgr.Restart(context.Background(), serverId, cfgText)
+	return a.frpcMgr.Restart(context.Background(), serverId, common, proxies)
 }
 
 // CheckServerCapabilities 查询服务端能力。

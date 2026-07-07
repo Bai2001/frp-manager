@@ -3,101 +3,103 @@ package frpc
 import (
 	"strings"
 	"testing"
+
+	v1 "github.com/fatedier/frp/pkg/config/v1"
 )
 
-func TestGenerate_TCPPort(t *testing.T) {
-	cfg := &Config{
-		ServerAddr: "1.2.3.4",
-		ServerPort: 7000,
-		Auth: Auth{Token: "tok"},
-		Proxies: []Proxy{{
-			Name: "rdp", Type: "tcp",
-			LocalIP: "127.0.0.1", LocalPort: 3389, RemotePort: 20389,
-		}},
+func TestBuildClientConfig(t *testing.T) {
+	cfg := BuildClientConfig("1.2.3.4", 7000, "tok")
+	if cfg.ServerAddr != "1.2.3.4" || cfg.ServerPort != 7000 || cfg.Auth.Token != "tok" {
+		t.Errorf("got %+v", cfg)
 	}
-	out, err := Generate(cfg)
+	if cfg.Auth.Method != v1.AuthMethodToken {
+		t.Errorf("Auth.Method = %q, want %q", cfg.Auth.Method, v1.AuthMethodToken)
+	}
+}
+
+func TestBuildProxy_TCP(t *testing.T) {
+	p, err := BuildProxy("rdp", "tcp", "127.0.0.1", 3389, 20389, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, `serverAddr = "1.2.3.4"`) {
+	tcp, ok := p.(*v1.TCPProxyConfig)
+	if !ok {
+		t.Fatalf("type = %T, want *TCPProxyConfig", p)
+	}
+	if tcp.Name != "rdp" || tcp.LocalPort != 3389 || tcp.RemotePort != 20389 {
+		t.Errorf("got %+v", tcp)
+	}
+	if tcp.LocalIP != "127.0.0.1" {
+		t.Errorf("LocalIP = %q", tcp.LocalIP)
+	}
+}
+
+func TestBuildProxy_UDP(t *testing.T) {
+	p, err := BuildProxy("wg", "udp", "127.0.0.1", 51820, 25180, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	udp, ok := p.(*v1.UDPProxyConfig)
+	if !ok {
+		t.Fatalf("type = %T, want *UDPProxyConfig", p)
+	}
+	if udp.RemotePort != 25180 {
+		t.Errorf("RemotePort = %d", udp.RemotePort)
+	}
+}
+
+func TestBuildProxy_HTTP_CustomDomain(t *testing.T) {
+	p, err := BuildProxy("web", "http", "127.0.0.1", 3000, 0, "app.example.com", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hp, ok := p.(*v1.HTTPProxyConfig)
+	if !ok {
+		t.Fatalf("type = %T, want *HTTPProxyConfig", p)
+	}
+	if len(hp.CustomDomains) != 1 || hp.CustomDomains[0] != "app.example.com" {
+		t.Errorf("CustomDomains = %+v", hp.CustomDomains)
+	}
+}
+
+func TestBuildProxy_HTTPS_Subdomain(t *testing.T) {
+	p, err := BuildProxy("demo", "https", "127.0.0.1", 8443, 0, "", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hp, ok := p.(*v1.HTTPSProxyConfig)
+	if !ok {
+		t.Fatalf("type = %T, want *HTTPSProxyConfig", p)
+	}
+	if hp.SubDomain != "demo" {
+		t.Errorf("SubDomain = %q", hp.SubDomain)
+	}
+}
+
+func TestBuildProxy_Unsupported(t *testing.T) {
+	if _, err := BuildProxy("x", "stcp", "127.0.0.1", 22, 0, "", ""); err == nil {
+		t.Fatal("不支持的协议应报错")
+	}
+}
+
+func TestMarshalConfig(t *testing.T) {
+	common := BuildClientConfig("1.2.3.4", 7000, "tok")
+	p, _ := BuildProxy("rdp", "tcp", "127.0.0.1", 3389, 20389, "", "")
+	out, err := MarshalConfig(common, []v1.ProxyConfigurer{p})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "1.2.3.4") {
 		t.Errorf("缺少 serverAddr: %s", out)
 	}
-	if !strings.Contains(out, `serverPort = 7000`) {
-		t.Errorf("缺少 serverPort: %s", out)
-	}
-	if !strings.Contains(out, `[auth]`) {
-		t.Errorf("缺少 [auth] 表: %s", out)
-	}
-	if !strings.Contains(out, `token = "tok"`) {
-		t.Errorf("缺少 auth.token: %s", out)
-	}
-	if !strings.Contains(out, `[[proxies]]`) {
-		t.Errorf("缺少 [[proxies]]: %s", out)
-	}
-	if !strings.Contains(out, `remotePort = 20389`) {
+	if !strings.Contains(out, "20389") {
 		t.Errorf("缺少 remotePort: %s", out)
 	}
 }
 
-func TestGenerate_HTTPDomain(t *testing.T) {
-	cfg := &Config{
-		ServerAddr: "1.2.3.4", ServerPort: 7000,
-		Proxies: []Proxy{{
-			Name: "web", Type: "http",
-			LocalIP: "127.0.0.1", LocalPort: 3000,
-			CustomDomains: []string{"app.example.com"},
-		}},
-	}
-	out, err := Generate(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, `type = "http"`) {
-		t.Errorf("缺少 type http: %s", out)
-	}
-	if !strings.Contains(out, `customDomains = ["app.example.com"]`) {
-		t.Errorf("缺少 customDomains: %s", out)
-	}
-}
-
-func TestGenerate_HTTPSSubdomain(t *testing.T) {
-	cfg := &Config{
-		ServerAddr: "1.2.3.4", ServerPort: 7000,
-		Proxies: []Proxy{{
-			Name: "demo", Type: "https",
-			LocalIP: "127.0.0.1", LocalPort: 8443,
-			Subdomain: "demo",
-		}},
-	}
-	out, err := Generate(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, `subdomain = "demo"`) {
-		t.Errorf("缺少 subdomain: %s", out)
-	}
-}
-
-func TestGenerate_UDP(t *testing.T) {
-	cfg := &Config{
-		ServerAddr: "1.2.3.4", ServerPort: 7000,
-		Proxies: []Proxy{{
-			Name: "wg", Type: "udp",
-			LocalIP: "127.0.0.1", LocalPort: 51820, RemotePort: 25180,
-		}},
-	}
-	out, err := Generate(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, `type = "udp"`) || !strings.Contains(out, `remotePort = 25180`) {
-		t.Errorf("缺少 udp 配置: %s", out)
-	}
-}
-
-func TestGenerate_EmptyProxies(t *testing.T) {
-	cfg := &Config{ServerAddr: "1.2.3.4", ServerPort: 7000}
-	out, err := Generate(cfg)
+func TestMarshalConfig_EmptyProxies(t *testing.T) {
+	common := BuildClientConfig("1.2.3.4", 7000, "tok")
+	out, err := MarshalConfig(common, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -35,8 +35,7 @@ func main() {
 		println("初始化 db repo 失败:", err.Error())
 		return
 	}
-	frpcConfigDir, _ := config.DefaultDir()
-	app.Init(repo, frpc.NewManager(frpcConfigDir))
+	app.Init(repo, frpc.NewManager())
 	app.SetDatabase(database)
 
 	// Create application with options

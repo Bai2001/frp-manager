@@ -1,138 +1,102 @@
 package frpc
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"sync"
+
+	"github.com/fatedier/frp/client"
+	"github.com/fatedier/frp/pkg/config/source"
+	"github.com/fatedier/frp/pkg/policy/security"
+	v1 "github.com/fatedier/frp/pkg/config/v1"
 )
 
-// Manager 管理 frpc 进程，每个 serverID 对应一个进程 + 配置文件。
+// Manager 内嵌 frpc 服务，每个 serverID 对应一个 Service + ctx cancel。
 type Manager struct {
-	mu           sync.Mutex
-	procs        map[string]*exec.Cmd
-	configDir    string
-	binary       string
-	args         []string
-	appendConfig bool // 是否在 args 末尾追加配置文件路径（真实 frpc 用 -c <path>，测试替身无需追加）
-	logCb        func(serverID, line string)
+	mu       sync.Mutex
+	services map[string]*client.Service
+	cancels  map[string]context.CancelFunc
+	logCb    func(serverID, line string)
 }
 
-// NewManager 创建进程管理器，configDir 用于存放每个 server 的 frpc.toml。
-func NewManager(configDir string) *Manager {
+// NewManager 创建 frpc 管理器。
+// 内嵌后不再需要 configDir（不写配置文件），故无参。
+func NewManager() *Manager {
 	return &Manager{
-		procs:        map[string]*exec.Cmd{},
-		configDir:    configDir,
-		binary:       "frpc",
-		args:         []string{"-c"},
-		appendConfig: true,
+		services: map[string]*client.Service{},
+		cancels:  map[string]context.CancelFunc{},
 	}
 }
 
-// SetBinary 覆盖默认 frpc 二进制与参数（测试用替身）。
-// 调用后不再自动追加配置文件路径到参数末尾，参数以传入的 args 为终态。
-func (m *Manager) SetBinary(name string, args ...string) {
-	m.binary = name
-	m.args = args
-	m.appendConfig = false
-}
-
-// SetLogCallback 设置日志回调，每次 frpc 输出一行调用一次。
-// 未设置（nil）时 Start 走原路径不创建 pipe，保证既有测试兼容。
+// SetLogCallback 设置日志回调。
+// 注意：frpc 内嵌后日志走 frp 全局 logger（pkg/util/log），v0.1 暂不深度集成,
+// 此回调保留接口但不会实际捕获 frp 内部日志。
 func (m *Manager) SetLogCallback(cb func(serverID, line string)) {
 	m.logCb = cb
 }
 
-// Generate 委托给包级 Generate 函数。
-func (m *Manager) Generate(cfg *Config) (string, error) {
-	return Generate(cfg)
-}
-
-// Start 为指定 server 写入配置并启动 frpc。
-func (m *Manager) Start(ctx context.Context, serverID, cfgText string) error {
+// Start 为指定 server 内嵌启动 frpc。
+// common 会先调用 Complete() 完善默认值，proxies 通过 config source 注入 Service。
+func (m *Manager) Start(ctx context.Context, serverID string, common *v1.ClientCommonConfig, proxies []v1.ProxyConfigurer) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if cmd, ok := m.procs[serverID]; ok && cmd.ProcessState == nil {
+	if _, ok := m.services[serverID]; ok {
 		return fmt.Errorf("server %s 的 frpc 已在运行", serverID)
 	}
-	if err := os.MkdirAll(m.configDir, 0o755); err != nil {
-		return fmt.Errorf("创建配置目录: %w", err)
+	if err := common.Complete(); err != nil {
+		return fmt.Errorf("完善 client config: %w", err)
 	}
-	cfgPath := filepath.Join(m.configDir, serverID+".toml")
-	if err := os.WriteFile(cfgPath, []byte(cfgText), 0o644); err != nil {
-		return fmt.Errorf("写入 frpc 配置: %w", err)
+	configSource := source.NewConfigSource()
+	if err := configSource.ReplaceAll(proxies, nil); err != nil {
+		return fmt.Errorf("设置 config source: %w", err)
 	}
-	args := append([]string{}, m.args...)
-	if m.appendConfig {
-		args = append(args, cfgPath)
+	aggregator := source.NewAggregator(configSource)
+	unsafe := security.NewUnsafeFeatures(nil)
+	svr, err := client.NewService(client.ServiceOptions{
+		Common:                 common,
+		ConfigSourceAggregator: aggregator,
+		UnsafeFeatures:         unsafe,
+	})
+	if err != nil {
+		return fmt.Errorf("创建 frpc service: %w", err)
 	}
-	cmd := exec.CommandContext(ctx, m.binary, args...)
-	// 仅在设置了日志回调时才创建 stdout/stderr pipe，否则走原路径（兼容既有测试替身）。
-	if m.logCb != nil {
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			return fmt.Errorf("stdout pipe: %w", err)
-		}
-		stderr, err := cmd.StderrPipe()
-		if err != nil {
-			return fmt.Errorf("stderr pipe: %w", err)
-		}
-		go scanLines(stdout, serverID, m.logCb)
-		go scanLines(stderr, serverID, m.logCb)
-	}
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("启动 frpc: %w", err)
-	}
-	m.procs[serverID] = cmd
-	go func() { _ = cmd.Wait() }()
+	runCtx, cancel := context.WithCancel(ctx)
+	m.services[serverID] = svr
+	m.cancels[serverID] = cancel
+	go func() {
+		_ = svr.Run(runCtx)
+		m.mu.Lock()
+		delete(m.services, serverID)
+		delete(m.cancels, serverID)
+		m.mu.Unlock()
+	}()
 	return nil
 }
 
-// scanLines 按行读取 r 并通过 cb 推送。
-func scanLines(r io.Reader, serverID string, cb func(serverID, line string)) {
-	sc := bufio.NewScanner(r)
-	for sc.Scan() {
-		cb(serverID, sc.Text())
-	}
-}
-
-// Stop 终止指定 server 的 frpc 进程。
+// Stop 停止指定 server 的 frpc。
 func (m *Manager) Stop(_ context.Context, serverID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	cmd, ok := m.procs[serverID]
-	if !ok || cmd.Process == nil {
+	cancel, ok := m.cancels[serverID]
+	if !ok {
 		return fmt.Errorf("server %s 未运行", serverID)
 	}
-	if err := cmd.Process.Kill(); err != nil {
-		return fmt.Errorf("终止 frpc: %w", err)
-	}
-	delete(m.procs, serverID)
+	cancel()
+	delete(m.services, serverID)
+	delete(m.cancels, serverID)
 	return nil
 }
 
 // Restart 重启指定 server 的 frpc。
-func (m *Manager) Restart(ctx context.Context, serverID, cfgText string) error {
-	m.mu.Lock()
-	if cmd, ok := m.procs[serverID]; ok && cmd.Process != nil {
-		_ = cmd.Process.Kill()
-		delete(m.procs, serverID)
-	}
-	m.mu.Unlock()
-	return m.Start(ctx, serverID, cfgText)
+func (m *Manager) Restart(ctx context.Context, serverID string, common *v1.ClientCommonConfig, proxies []v1.ProxyConfigurer) error {
+	_ = m.Stop(ctx, serverID)
+	return m.Start(ctx, serverID, common, proxies)
 }
 
 // IsRunning 返回指定 server 的 frpc 是否在运行。
 func (m *Manager) IsRunning(serverID string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	cmd, ok := m.procs[serverID]
-	if !ok {
-		return false
-	}
-	return cmd.ProcessState == nil
+	_, ok := m.services[serverID]
+	return ok
 }

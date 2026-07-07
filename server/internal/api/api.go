@@ -62,10 +62,9 @@ func (s *Server) Router() http.Handler {
 	r.Get("/api/ports/check", s.checkPort)
 	r.Post("/api/ports/allocate", s.allocatePort)
 	r.Post("/api/ports/release", s.releasePort)
-	// 以下端点在后续任务启用
-	// r.Post("/api/domains/check", s.checkDomain)
-	// r.Post("/api/domains/register", s.registerDomain)
-	// r.Post("/api/domains/release", s.releaseDomain)
+	r.Post("/api/domains/check", s.checkDomain)
+	r.Post("/api/domains/register", s.registerDomain)
+	r.Post("/api/domains/release", s.releaseDomain)
 
 	return r
 }
@@ -190,6 +189,56 @@ func (s *Server) releasePort(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.ports.Release(r.Context(), portpool.Protocol(req.Protocol), req.Port); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (s *Server) checkDomain(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Protocol string `json:"protocol"`
+		Domain   string `json:"domain"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "无效请求体"})
+		return
+	}
+	res, err := s.domains.Check(r.Context(), domain.Protocol(req.Protocol), req.Domain)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) registerDomain(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Protocol string `json:"protocol"`
+		Domain   string `json:"domain"`
+		TunnelID string `json:"tunnel_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "无效请求体"})
+		return
+	}
+	if err := s.domains.Register(r.Context(), domain.Protocol(req.Protocol), req.Domain, req.TunnelID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (s *Server) releaseDomain(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Protocol string `json:"protocol"`
+		Domain   string `json:"domain"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "无效请求体"})
+		return
+	}
+	if err := s.domains.Release(r.Context(), domain.Protocol(req.Protocol), req.Domain); err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 		return
 	}

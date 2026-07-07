@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/kdc/frp-manager/server/internal/config"
+	"github.com/kdc/frp-manager/server/internal/domain"
 	"github.com/kdc/frp-manager/server/internal/portpool"
 )
 
@@ -153,5 +154,62 @@ func TestPortsAllocateAndRelease(t *testing.T) {
 	srv.Router().ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("release status=%d body=%s", rec2.Code, rec2.Body.String())
+	}
+}
+
+func TestDomainsCheck(t *testing.T) {
+	cfgPath := writeAgentConfig(t)
+	cfg, _ := config.Load(cfgPath)
+	srv := NewTestServer(t, cfg)
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/check", strings.NewReader(`{"protocol":"http","domain":"app.example.com"}`))
+	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp domain.CheckResult
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if !resp.Available {
+		t.Errorf("app.example.com 应可用, got %+v", resp)
+	}
+}
+
+func TestDomainsRegisterAndRelease(t *testing.T) {
+	cfgPath := writeAgentConfig(t)
+	cfg, _ := config.Load(cfgPath)
+	srv := NewTestServer(t, cfg)
+
+	// register
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/register", strings.NewReader(`{"protocol":"http","domain":"app.example.com","tunnel_id":"t1"}`))
+	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("register status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// 再 check 应不可用
+	req2 := httptest.NewRequest(http.MethodPost, "/api/domains/check", strings.NewReader(`{"protocol":"http","domain":"app.example.com"}`))
+	req2.Header.Set("Authorization", "Bearer test-token")
+	req2.Header.Set("Content-Type", "application/json")
+	rec2 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec2, req2)
+	var resp domain.CheckResult
+	_ = json.Unmarshal(rec2.Body.Bytes(), &resp)
+	if resp.Available {
+		t.Errorf("注册后应不可用")
+	}
+
+	// release
+	req3 := httptest.NewRequest(http.MethodPost, "/api/domains/release", strings.NewReader(`{"protocol":"http","domain":"app.example.com"}`))
+	req3.Header.Set("Authorization", "Bearer test-token")
+	req3.Header.Set("Content-Type", "application/json")
+	rec3 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec3, req3)
+	if rec3.Code != http.StatusOK {
+		t.Fatalf("release status=%d body=%s", rec3.Code, rec3.Body.String())
 	}
 }

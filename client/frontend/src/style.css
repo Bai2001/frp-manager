@@ -1,0 +1,13 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Roboto, "Helvetica Neue", sans-serif;
+  color: #303133;
+  background: #f5f7fa;
+}
+
+#app {
+  height: 100vh;
+}

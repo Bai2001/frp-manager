@@ -1,0 +1,32 @@
+# FRP Manager Server Agent 配置示例
+# 复制为 agent.toml 后修改
+
+# Agent HTTP API 监听地址
+[server]
+addr = "0.0.0.0:7400"
+
+# 访问 Agent API 的 Bearer Token
+# 客户端请求需带 Authorization: Bearer <agent-token>
+token = "change-me-agent-token"
+
+# SQLite 数据文件路径
+database = "data/server.db"
+
+# frps 相关配置
+[frps]
+# frps 可执行文件路径
+binary = "/opt/frp-manager-server/frps"
+# frps 配置文件路径
+config = "/opt/frp-manager-server/config/frps.toml"
+# frps 日志目录
+log_dir = "/opt/frp-manager-server/logs"
+
+# 域名策略（HTTP/HTTPS）
+[domain]
+allow_custom_domain = true
+allowed_root_domains = [
+    "example.com",
+    "frp.example.com",
+]
+allow_subdomain = true
+subdomain_host = "frp.example.com"

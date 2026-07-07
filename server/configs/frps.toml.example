@@ -1,0 +1,33 @@
+# frps 配置示例
+# 由 server-agent 管理或校验，依据设计文档第 11 节
+
+bindPort = 7000
+
+[auth]
+method = "token"
+token = "your-frp-token"
+
+# 允许的远程端口范围（TCP/UDP 映射端口池）
+[[allowPorts]]
+start = 10000
+end = 60000
+
+# HTTP vhost 端口
+vhostHTTPPort = 80
+# HTTPS vhost 端口
+vhostHTTPSPort = 443
+
+# 子域名模式根域名
+subDomainHost = "frp.example.com"
+
+[log]
+to = "/opt/frp-manager-server/logs/frps.log"
+level = "info"
+maxDays = 7
+
+# frp 官方 Dashboard，仅监听 127.0.0.1，不对公网开放
+[webServer]
+addr = "127.0.0.1"
+port = 7500
+user = "admin"
+password = "strong-password"

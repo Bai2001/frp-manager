@@ -350,6 +350,8 @@ func (a *App) GenerateFrpcConfig(serverId string) (string, error) {
 }
 
 // StartFrpc 启动指定服务器的 frpc 进程，并转发其输出为日志事件。
+// 注意：Start 是异步的——立即返回成功仅表示 frpc service 已创建并开始尝试连接 frps，
+// 真正是否连上要看日志事件和 IsFrpcRunning 轮询。连接失败会通过日志事件推送。
 func (a *App) StartFrpc(serverId string) error {
 	common, proxies, err := a.buildFrpcConfig(serverId)
 	if err != nil {
@@ -359,7 +361,7 @@ func (a *App) StartFrpc(serverId string) error {
 		a.EmitLog("error", "启动 frpc 失败: "+err.Error(), serverId)
 		return err
 	}
-	a.EmitLog("info", "frpc 已启动", serverId)
+	a.EmitLog("info", "frpc 正在启动，等待连接 frps...", serverId)
 	return nil
 }
 

@@ -2,6 +2,7 @@ package frpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -74,7 +75,11 @@ func (m *Manager) Start(ctx context.Context, serverID string, common *v1.ClientC
 	m.cancels[serverID] = cancel
 	m.generations[serverID] = gen
 	go func() {
-		_ = svr.Run(runCtx)
+		err := svr.Run(runCtx)
+		// Run 返回后若非正常取消（context.Canceled），推送错误日志给前端
+		if err != nil && !errors.Is(err, context.Canceled) && m.logCb != nil {
+			m.logCb(serverID, "frpc 运行结束: "+err.Error())
+		}
 		m.mu.Lock()
 		// 只在自己 generation 匹配时清理，避免 Restart 后旧 goroutine 误删新 service
 		if m.generations[serverID] == gen {

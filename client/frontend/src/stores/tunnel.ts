@@ -45,7 +45,7 @@ export const useTunnelStore = defineStore('tunnel', () => {
   async function startFrpc(serverId: string): Promise<boolean> {
     try {
       await api.startFrpc(serverId)
-      ElMessage.success('frpc 已启动')
+      ElMessage.success('frpc 正在启动，请查看日志确认连接状态')
       return true
     } catch (e: any) {
       ElMessage.error('启动失败: ' + e.message)

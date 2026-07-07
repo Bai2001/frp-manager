@@ -19,10 +19,10 @@ export const useLogStore = defineStore('log', () => {
     }
   }
 
-  // 绑定 Wails 事件 "log:append"，由后端 EventsEmit 推送。
+  // 绑定 Wails v3 事件 "log:append"，由后端 app.Event.Emit 推送。
+  // App.vue 已通过 Events.On 绑定并调用 append，此处保留接口供兼容。
   function bindEvents(runtime: any) {
-    if (bound || !runtime?.EventsOn) return
-    runtime.EventsOn('log:append', (line: LogLine) => append(line))
+    if (bound) return
     bound = true
   }
 

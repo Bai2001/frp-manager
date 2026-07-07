@@ -1,5 +1,8 @@
-// 封装对 Wails 后端 App 方法的调用。
-// Wails v2 把 main 包里 Bind 的对象注入到 window.go.main.App 下。
+// 封装对 Wails v3 后端 App 服务的调用。
+// v3 通过 wails3 generate bindings 自动生成 TypeScript 绑定，
+// 前端直接 import 调用，不再依赖 window.go 注入。
+
+import * as AppService from '../../bindings/github.com/kdc/frp-manager/client/app'
 
 export interface ServerInfo {
   id: string
@@ -77,16 +80,11 @@ export interface DomainCheckResult {
   reason: string
 }
 
-// Wails 绑定的后端对象。开发模式下 wails dev 会注入；类型宽松处理。
-function backend(): any {
-  return (window as any).go?.main?.App
-}
-
-// 统一调用包装：Wails 方法返回 Promise，reject 时抛 Error。
+// 统一调用包装：v3 绑定方法返回 CancellablePromise，reject 时抛 Error。
 // Wails reject 的值可能是字符串、对象或 Error，统一规范化成带 message 的 Error。
 async function call<T>(fn: any, ...args: any[]): Promise<T> {
   if (!fn) {
-    throw new Error('后端未就绪（window.go.main.App 不存在）')
+    throw new Error('后端绑定未就绪')
   }
   try {
     return await fn(...args)
@@ -100,49 +98,49 @@ async function call<T>(fn: any, ...args: any[]): Promise<T> {
 export const api = {
   // 服务器
   async listServers(): Promise<ServerInfo[]> {
-    return (await call(backend()?.ListServers)) ?? []
+    return (await call(AppService.ListServers)) ?? []
   },
   async addServer(input: AddServerInput): Promise<string> {
-    return await call(backend()?.AddServer, input)
+    return await call(AppService.AddServer, input)
   },
   async updateServerByID(id: string, input: AddServerInput): Promise<void> {
-    await call(backend()?.UpdateServerByID, id, input)
+    await call(AppService.UpdateServerByID, id, input)
   },
   async deleteServer(id: string): Promise<void> {
-    await call(backend()?.DeleteServer, id)
+    await call(AppService.DeleteServer, id)
   },
   async checkServerCapabilities(id: string): Promise<Capabilities> {
-    return await call(backend()?.CheckServerCapabilities, id)
+    return await call(AppService.CheckServerCapabilities, id)
   },
 
   // 映射
   async listTunnels(serverId?: string): Promise<TunnelInfo[]> {
-    return (await call(backend()?.ListTunnels, serverId ?? '')) ?? []
+    return (await call(AppService.ListTunnels, serverId ?? '')) ?? []
   },
   async addTunnel(input: AddTunnelInput): Promise<string> {
-    return await call(backend()?.AddTunnel, input)
+    return await call(AppService.AddTunnel, input)
   },
   async updateTunnelByID(id: string, input: AddTunnelInput): Promise<void> {
-    await call(backend()?.UpdateTunnelByID, id, input)
+    await call(AppService.UpdateTunnelByID, id, input)
   },
   async deleteTunnel(id: string): Promise<void> {
-    await call(backend()?.DeleteTunnel, id)
+    await call(AppService.DeleteTunnel, id)
   },
 
   // frpc
   async generateFrpcConfig(serverId: string): Promise<string> {
-    return await call(backend()?.GenerateFrpcConfig, serverId)
+    return await call(AppService.GenerateFrpcConfig, serverId)
   },
   async startFrpc(serverId: string): Promise<void> {
-    await call(backend()?.StartFrpc, serverId)
+    await call(AppService.StartFrpc, serverId)
   },
   async stopFrpc(serverId: string): Promise<void> {
-    await call(backend()?.StopFrpc, serverId)
+    await call(AppService.StopFrpc, serverId)
   },
   async restartFrpc(serverId: string): Promise<void> {
-    await call(backend()?.RestartFrpc, serverId)
+    await call(AppService.RestartFrpc, serverId)
   },
   async isFrpcRunning(serverId: string): Promise<boolean> {
-    return await call(backend()?.IsFrpcRunning, serverId)
+    return await call(AppService.IsFrpcRunning, serverId)
   },
 }

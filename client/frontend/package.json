@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vue-tsc && vite build --mode production",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@wailsio/runtime": "latest",
     "axios": "^1.7.9",
     "element-plus": "^2.9.4",
     "pinia": "^2.3.1",

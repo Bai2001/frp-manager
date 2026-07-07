@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { EventsOn } from '../wailsjs/runtime/runtime'
+import { Events } from '@wailsio/runtime'
 import { useLogStore } from '@/stores/log'
 
 const route = useRoute()
@@ -17,8 +17,8 @@ const menus = [
 ]
 
 onMounted(() => {
-  // 绑定后端 EventsEmit 的 log:append 事件
-  EventsOn('log:append', (line: any) => {
+  // 绑定后端 app.Event.Emit 的 log:append 事件
+  Events.On('log:append', (line: any) => {
     logStore.append({
       time: line.time ?? new Date().toISOString(),
       level: line.level ?? 'info',

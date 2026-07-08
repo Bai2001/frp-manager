@@ -110,7 +110,6 @@ async function handleCheckCapabilities(row: ServerInfo) {
     padding: 24px;
     flex: 1;
     min-height: 0;
-    overflow: auto;
 }
 
 .page-header {

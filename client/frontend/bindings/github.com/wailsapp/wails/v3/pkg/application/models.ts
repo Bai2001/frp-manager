@@ -125,6 +125,9 @@ export interface ScreenManager {
 export interface SystemTrayManager {
 }
 
+export interface WebviewWindow {
+}
+
 /**
  * WindowManager manages all window-related operations
  */

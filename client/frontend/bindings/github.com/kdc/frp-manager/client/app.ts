@@ -167,6 +167,7 @@ export function RestartFrpc(serverId: string): $CancellablePromise<void> {
 /**
  * SaveSettings 保存设置并应用即时生效的部分（日志保留、开机自启）。
  * 日志保留天数变化时重建 logWriter；开机自启变化时同步注册表/文件。
+ * 前端不感知窗口状态字段，此处保留服务端缓存的窗口状态，避免被零值覆盖。
  */
 export function SaveSettings($in: settings$0.Settings): $CancellablePromise<void> {
     return $Call.ByID(1949631069, $in);
@@ -186,6 +187,14 @@ export function SetApplication(app: application$0.App | null): $CancellablePromi
  */
 export function SetTray(t: $models.Tray | null): $CancellablePromise<void> {
     return $Call.ByID(335209399, t);
+}
+
+/**
+ * SetupWindowStatePersistence 在 App 上注册窗口状态持久化。
+ * 由 main.go 在窗口创建后调用。
+ */
+export function SetupWindowStatePersistence(window: application$0.WebviewWindow | null): $CancellablePromise<void> {
+    return $Call.ByID(2904957754, window);
 }
 
 /**

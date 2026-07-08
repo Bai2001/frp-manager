@@ -86,6 +86,13 @@ export interface Settings {
   auto_start: boolean
   log_retention_days: number
   config_dir: string
+  // 窗口状态持久化字段：由后端窗口事件自动维护，前端设置页不编辑。
+  // 声明为可选，往返保存时由后端保留原值，前端无需感知。
+  window_maximised?: boolean
+  window_x?: number
+  window_y?: number
+  window_width?: number
+  window_height?: number
 }
 
 // 统一调用包装：v3 绑定方法返回 CancellablePromise，reject 时抛 Error。

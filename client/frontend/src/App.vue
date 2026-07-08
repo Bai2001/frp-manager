@@ -222,7 +222,9 @@ onUnmounted(() => {
 .main {
     padding: 0;
     background: var(--content-bg);
-    overflow: hidden;
+    /* 滚动由主内容区统一承担，滚动条贴应用右边框；
+       各视图 .page 只负责内容留白（padding），不再各自滚动 */
+    overflow: auto;
     height: 100%;
     display: flex;
     flex-direction: column;

@@ -260,7 +260,6 @@ async function copyUrl(url: string) {
     padding: 24px;
     flex: 1;
     min-height: 0;
-    overflow: auto;
 }
 
 .page-header {

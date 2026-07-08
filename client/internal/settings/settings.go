@@ -15,6 +15,15 @@ type Settings struct {
 	AutoStart        bool   `json:"auto_start"`         // 开机自启
 	LogRetentionDays int    `json:"log_retention_days"` // 日志保留天数，0=不落盘
 	ConfigDir        string `json:"config_dir"`         // 配置目录（只读展示，当前不支持修改）
+
+	// 窗口状态持久化（DIP 坐标，与 Wails Position()/Size() 返回值一致）。
+	// 由窗口移动/缩放/最大化事件自动写回，前端设置页不感知这些字段。
+	// WindowWidth/WindowHeight 为 0 时表示无记录，使用默认尺寸。
+	WindowMaximised bool `json:"window_maximised"`
+	WindowX         int  `json:"window_x"`
+	WindowY         int  `json:"window_y"`
+	WindowWidth     int  `json:"window_width"`
+	WindowHeight    int  `json:"window_height"`
 }
 
 // Store 负责读写 settings.json。

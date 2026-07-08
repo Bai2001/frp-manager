@@ -160,10 +160,10 @@ async function onFileSelected(e: Event) {
 <style scoped>
 .page {
     padding: 24px;
-    max-width: 720px;
+    max-width: 960px;
+    margin: 0 auto;
     flex: 1;
     min-height: 0;
-    overflow: auto;
 }
 
 .page-title h2 {
@@ -210,7 +210,7 @@ async function onFileSelected(e: Event) {
 }
 
 .setting-form {
-    max-width: 560px;
+    /* 表单跟随卡片宽度自适应，不再二次限宽 */
 }
 
 .hint {
@@ -228,6 +228,13 @@ async function onFileSelected(e: Event) {
     gap: 8px;
 }
 
+/* 响应式：中等屏宽收窄内容上限，避免宽屏右侧留白过多 */
+@media (max-width: 1024px) {
+    .page {
+        max-width: 100%;
+    }
+}
+
 /* 响应式：窄屏表单 label 顶部对齐、内边距紧凑 */
 @media (max-width: 768px) {
     .page {
@@ -235,9 +242,6 @@ async function onFileSelected(e: Event) {
     }
     .page-title h2 {
         font-size: 18px;
-    }
-    .setting-form {
-        max-width: 100%;
     }
     /* el-form label 在窄屏改为顶部对齐，避免标签挤压输入框 */
     :deep(.setting-form .el-form-item__label) {

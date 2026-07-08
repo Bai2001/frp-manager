@@ -571,10 +571,17 @@ func (a *App) GetSettings() (settings.Settings, error) {
 
 // SaveSettings 保存设置并应用即时生效的部分（日志保留、开机自启）。
 // 日志保留天数变化时重建 logWriter；开机自启变化时同步注册表/文件。
+// 前端不感知窗口状态字段，此处保留服务端缓存的窗口状态，避免被零值覆盖。
 func (a *App) SaveSettings(in settings.Settings) error {
 	if a.settingsStore == nil {
 		return fmt.Errorf("设置未初始化")
 	}
+	// 保留窗口状态字段（前端 Settings 接口不含这些字段，传入值为零值）
+	in.WindowMaximised = a.settings.WindowMaximised
+	in.WindowX = a.settings.WindowX
+	in.WindowY = a.settings.WindowY
+	in.WindowWidth = a.settings.WindowWidth
+	in.WindowHeight = a.settings.WindowHeight
 	// 开机自启：与当前状态不同时执行
 	if in.AutoStart != a.settings.AutoStart {
 		var err error

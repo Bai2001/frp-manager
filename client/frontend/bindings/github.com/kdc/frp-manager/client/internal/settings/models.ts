@@ -25,4 +25,15 @@ export interface Settings {
      * 配置目录（只读展示，当前不支持修改）
      */
     "config_dir": string;
+
+    /**
+     * 窗口状态持久化（DIP 坐标，与 Wails Position()/Size() 返回值一致）。
+     * 由窗口移动/缩放/最大化事件自动写回，前端设置页不感知这些字段。
+     * WindowWidth/WindowHeight 为 0 时表示无记录，使用默认尺寸。
+     */
+    "window_maximised": boolean;
+    "window_x": number;
+    "window_y": number;
+    "window_width": number;
+    "window_height": number;
 }

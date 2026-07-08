@@ -60,25 +60,32 @@ func (a *App) SetTray(t *Tray) {
 // ServiceStartup 在应用启动时由 Wails v3 调用。
 // 初始化 db/repo/frpcMgr/settings/logfile，返回 error 可中断启动。
 func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+	a.EmitLog("info", "FRP Manager 启动中...", "")
+
 	dbPath, err := config.DefaultDBPath()
 	if err != nil {
+		a.EmitLog("error", "获取默认 DB 路径失败: "+err.Error(), "")
 		return fmt.Errorf("获取默认 DB 路径: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+		a.EmitLog("error", "创建配置目录失败: "+err.Error(), "")
 		return fmt.Errorf("创建配置目录: %w", err)
 	}
 	database, err := db.Open(dbPath)
 	if err != nil {
+		a.EmitLog("error", "打开数据库失败: "+err.Error(), "")
 		return fmt.Errorf("打开客户端数据库: %w", err)
 	}
 	repo, err := db.NewRepo(database)
 	if err != nil {
 		_ = database.Close()
+		a.EmitLog("error", "初始化数据库仓库失败: "+err.Error(), "")
 		return fmt.Errorf("初始化 db repo: %w", err)
 	}
 	a.database = database
 	a.repo = repo
 	a.frpcMgr = frpc.NewManager()
+	a.EmitLog("info", "数据库初始化完成", "")
 
 	// 加载设置并初始化日志持久化
 	cfgDir, _ := config.DefaultDir()
@@ -86,11 +93,16 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	a.settings, err = a.settingsStore.Load()
 	if err != nil {
 		// 设置损坏不阻塞启动，用零值继续
+		a.EmitLog("warn", "设置文件读取失败，使用默认设置: "+err.Error(), "")
 		a.settings = settings.Settings{}
+	} else {
+		a.EmitLog("info", fmt.Sprintf("设置已加载（日志保留 %d 天，开机自启 %v，关闭最小化到托盘 %v）",
+			a.settings.LogRetentionDays, a.settings.AutoStart, a.settings.CloseToTray), "")
 	}
 	if a.settings.LogRetentionDays > 0 {
 		a.logWriter = logfile.New(cfgDir, a.settings.LogRetentionDays)
 		go a.logWriter.Cleanup() // 启动时清理一次过期日志
+		a.EmitLog("info", fmt.Sprintf("日志持久化已启用，保留 %d 天", a.settings.LogRetentionDays), "")
 	}
 
 	a.frpcMgr.SetLogCallback(func(serverID, line string) {
@@ -103,15 +115,23 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 		}
 		a.EmitLog(level, line, serverID)
 	})
+
+	a.EmitLog("info", "FRP Manager 启动完成", "")
 	return nil
 }
 
 // ServiceShutdown 在应用退出时由 Wails v3 调用，停止所有 frpc 并释放资源。
 func (a *App) ServiceShutdown() error {
+	a.EmitLog("info", "FRP Manager 正在退出...", "")
+
 	var firstErr error
 	if a.frpcMgr != nil {
+		a.EmitLog("info", "正在停止所有 frpc 进程...", "")
 		if err := a.frpcMgr.StopAll(); err != nil {
+			a.EmitLog("error", "停止 frpc 失败: "+err.Error(), "")
 			firstErr = err
+		} else {
+			a.EmitLog("info", "所有 frpc 进程已停止", "")
 		}
 	}
 	if a.logWriter != nil {
@@ -119,6 +139,7 @@ func (a *App) ServiceShutdown() error {
 			if firstErr == nil {
 				firstErr = err
 			}
+			a.EmitLog("warn", "关闭日志文件失败: "+err.Error(), "")
 		}
 	}
 	if a.database != nil {
@@ -126,7 +147,14 @@ func (a *App) ServiceShutdown() error {
 			if firstErr == nil {
 				firstErr = err
 			}
+			a.EmitLog("warn", "关闭数据库失败: "+err.Error(), "")
 		}
+	}
+
+	if firstErr == nil {
+		a.EmitLog("info", "FRP Manager 已安全退出", "")
+	} else {
+		a.EmitLog("error", "FRP Manager 退出时发生错误: "+firstErr.Error(), "")
 	}
 	return firstErr
 }
@@ -188,8 +216,10 @@ func (a *App) AddServer(in AddServerInput) (string, error) {
 		IsDefault: in.IsDefault, Remark: in.Remark, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := a.repo.InsertServer(s); err != nil {
+		a.EmitLog("error", "添加服务器「"+in.Name+"」失败: "+err.Error(), "")
 		return "", err
 	}
+	a.EmitLog("info", fmt.Sprintf("已添加服务器「%s」（%s:%d）", in.Name, in.Host, in.FrpsPort), "")
 	return s.ID, nil
 }
 
@@ -201,18 +231,32 @@ func (a *App) UpdateServerByID(id string, in AddServerInput) error {
 		FrpToken: in.FrpToken, AgentURL: in.AgentURL, AgentToken: in.AgentToken,
 		IsDefault: in.IsDefault, Remark: in.Remark, UpdatedAt: now,
 	}
-	return a.repo.UpdateServer(s)
+	if err := a.repo.UpdateServer(s); err != nil {
+		a.EmitLog("error", "更新服务器「"+in.Name+"」失败: "+err.Error(), "")
+		return err
+	}
+	a.EmitLog("info", "已更新服务器「"+in.Name+"」", "")
+	return nil
 }
 
 // DeleteServer 删除服务器，并尝试通过 agent 释放其下映射占用的服务端资源。
 func (a *App) DeleteServer(id string) error {
 	tunnels, _ := a.repo.ListTunnelsByServer(id)
+	serverName := id
+	if s, err := a.repo.GetServer(id); err == nil {
+		serverName = s.Name
+	}
 	if cli, err := a.newAgentClient(id); err == nil {
 		for _, tu := range tunnels {
 			a.releaseServerResource(cli, tu)
 		}
 	}
-	return a.repo.DeleteServer(id)
+	if err := a.repo.DeleteServer(id); err != nil {
+		a.EmitLog("error", "删除服务器「"+serverName+"」失败: "+err.Error(), "")
+		return err
+	}
+	a.EmitLog("info", fmt.Sprintf("已删除服务器「%s」（含 %d 个映射）", serverName, len(tunnels)), "")
+	return nil
 }
 
 // ListTunnels 返回指定服务器的映射；serverId 为空则返回全部。
@@ -245,26 +289,33 @@ func (a *App) AddTunnel(in AddTunnelInput) (string, error) {
 	ctx := context.Background()
 	cli, err := a.newAgentClient(in.ServerID)
 	if err != nil {
+		a.EmitLog("error", "创建映射「"+in.Name+"」失败: 无法连接 agent - "+err.Error(), in.ServerID)
 		return "", err
 	}
 	switch in.Protocol {
 	case "tcp", "udp":
 		if in.RemotePort > 0 {
 			// 手动指定端口：检查可用性
+			a.EmitLog("info", fmt.Sprintf("正在检查端口 %d (%s) 是否可用...", in.RemotePort, in.Protocol), in.ServerID)
 			res, err := cli.CheckPort(ctx, in.Protocol, in.RemotePort)
 			if err != nil {
+				a.EmitLog("error", fmt.Sprintf("检查端口 %d 失败: %s", in.RemotePort, err.Error()), in.ServerID)
 				return "", fmt.Errorf("检查端口: %w", err)
 			}
 			if !res.Available {
+				a.EmitLog("warn", fmt.Sprintf("端口 %d 不可用: %s", in.RemotePort, res.Reason), in.ServerID)
 				return "", fmt.Errorf("端口 %d 不可用: %s", in.RemotePort, res.Reason)
 			}
 		} else {
 			// 自动分配
+			a.EmitLog("info", fmt.Sprintf("正在自动分配 %s 端口...", in.Protocol), in.ServerID)
 			port, err := cli.AllocatePort(ctx, in.Protocol)
 			if err != nil {
+				a.EmitLog("error", "自动分配端口失败: "+err.Error(), in.ServerID)
 				return "", fmt.Errorf("分配端口: %w", err)
 			}
 			in.RemotePort = port
+			a.EmitLog("info", fmt.Sprintf("已分配端口 %d", port), in.ServerID)
 		}
 	case "http", "https":
 		domain := in.CustomDomain
@@ -274,11 +325,14 @@ func (a *App) AddTunnel(in AddTunnelInput) (string, error) {
 		if domain == "" {
 			return "", fmt.Errorf("http/https 映射需提供 custom_domain 或 subdomain")
 		}
+		a.EmitLog("info", fmt.Sprintf("正在检查域名 %s (%s) 是否可用...", domain, in.Protocol), in.ServerID)
 		res, err := cli.CheckDomain(ctx, in.Protocol, domain)
 		if err != nil {
+			a.EmitLog("error", fmt.Sprintf("检查域名 %s 失败: %s", domain, err.Error()), in.ServerID)
 			return "", fmt.Errorf("检查域名: %w", err)
 		}
 		if !res.Available {
+			a.EmitLog("warn", fmt.Sprintf("域名 %s 不可用: %s", domain, res.Reason), in.ServerID)
 			return "", fmt.Errorf("域名 %s 不可用: %s", domain, res.Reason)
 		}
 	}
@@ -291,8 +345,11 @@ func (a *App) AddTunnel(in AddTunnelInput) (string, error) {
 		Enabled: true, Status: "stopped", CreatedAt: now, UpdatedAt: now,
 	}
 	if err := a.repo.InsertTunnel(tu); err != nil {
+		a.EmitLog("error", "创建映射「"+in.Name+"」落库失败: "+err.Error(), in.ServerID)
 		return "", err
 	}
+	a.EmitLog("info", fmt.Sprintf("已创建映射「%s」(%s → %s:%d)",
+		in.Name, in.Protocol, in.LocalIP, in.LocalPort), in.ServerID)
 	// 落库成功后注册域名占用（http/https）
 	if in.Protocol == "http" || in.Protocol == "https" {
 		domain := in.CustomDomain
@@ -337,12 +394,21 @@ func (a *App) UpdateTunnelByID(id string, in AddTunnelInput) error {
 func (a *App) DeleteTunnel(id string) error {
 	tu, err := a.repo.GetTunnel(id)
 	if err != nil {
+		a.EmitLog("error", "删除映射失败: 映射不存在 - "+err.Error(), "")
 		return fmt.Errorf("映射不存在: %w", err)
 	}
+	tunnelName := tu.Name
 	if cli, err := a.newAgentClient(tu.ServerID); err == nil {
 		a.releaseServerResource(cli, *tu)
+	} else {
+		a.EmitLog("warn", "释放服务端资源时无法连接 agent: "+err.Error(), tu.ServerID)
 	}
-	return a.repo.DeleteTunnel(id)
+	if err := a.repo.DeleteTunnel(id); err != nil {
+		a.EmitLog("error", "删除映射「"+tunnelName+"」失败: "+err.Error(), tu.ServerID)
+		return err
+	}
+	a.EmitLog("info", "已删除映射「"+tunnelName+"」", tu.ServerID)
+	return nil
 }
 
 // releaseServerResource 根据协议释放端口或域名。
@@ -417,25 +483,47 @@ func (a *App) StartFrpc(serverId string) error {
 
 // StopFrpc 停止指定服务器的 frpc 进程。
 func (a *App) StopFrpc(serverId string) error {
-	return a.frpcMgr.Stop(context.Background(), serverId)
+	a.EmitLog("info", "正在停止 frpc...", serverId)
+	if err := a.frpcMgr.Stop(context.Background(), serverId); err != nil {
+		a.EmitLog("error", "停止 frpc 失败: "+err.Error(), serverId)
+		return err
+	}
+	a.EmitLog("info", "frpc 已停止", serverId)
+	return nil
 }
 
 // RestartFrpc 重启指定服务器的 frpc 进程。
 func (a *App) RestartFrpc(serverId string) error {
 	common, proxies, err := a.buildFrpcConfig(serverId)
 	if err != nil {
+		a.EmitLog("error", "重启 frpc 失败: 构建配置出错 - "+err.Error(), serverId)
 		return err
 	}
-	return a.frpcMgr.Restart(context.Background(), serverId, common, proxies)
+	a.EmitLog("info", "正在重启 frpc...", serverId)
+	if err := a.frpcMgr.Restart(context.Background(), serverId, common, proxies); err != nil {
+		a.EmitLog("error", "重启 frpc 失败: "+err.Error(), serverId)
+		return err
+	}
+	a.EmitLog("info", "frpc 已重启，等待连接 frps...", serverId)
+	return nil
 }
 
 // CheckServerCapabilities 查询服务端能力。
 func (a *App) CheckServerCapabilities(serverId string) (*agent.Capabilities, error) {
+	a.EmitLog("info", "正在检测服务端能力...", serverId)
 	cli, err := a.newAgentClient(serverId)
 	if err != nil {
+		a.EmitLog("error", "检测能力失败: 无法连接 agent - "+err.Error(), serverId)
 		return nil, err
 	}
-	return cli.Capabilities(context.Background())
+	caps, err := cli.Capabilities(context.Background())
+	if err != nil {
+		a.EmitLog("error", "检测能力失败: "+err.Error(), serverId)
+		return nil, err
+	}
+	a.EmitLog("info", fmt.Sprintf("服务端能力检测完成（frps %s，bind %d，支持 TCP=%v UDP=%v HTTP=%v HTTPS=%v）",
+		caps.FrpsVersion, caps.BindPort, caps.SupportTCP, caps.SupportUDP, caps.SupportHTTP, caps.SupportHTTPS), serverId)
+	return caps, nil
 }
 
 // IsFrpcRunning 返回指定服务器的 frpc 是否在运行。
@@ -491,12 +579,20 @@ func (a *App) SaveSettings(in settings.Settings) error {
 	if in.AutoStart != a.settings.AutoStart {
 		var err error
 		if in.AutoStart {
+			a.EmitLog("info", "正在启用开机自启...", "")
 			err = autostart.Enable()
 		} else {
+			a.EmitLog("info", "正在关闭开机自启...", "")
 			err = autostart.Disable()
 		}
 		if err != nil {
+			a.EmitLog("error", "设置开机自启失败: "+err.Error(), "")
 			return fmt.Errorf("设置开机自启: %w", err)
+		}
+		if in.AutoStart {
+			a.EmitLog("info", "开机自启已启用", "")
+		} else {
+			a.EmitLog("info", "开机自启已关闭", "")
 		}
 	}
 	// 日志保留天数变化：重建 logWriter
@@ -510,11 +606,14 @@ func (a *App) SaveSettings(in settings.Settings) error {
 			a.logWriter = logfile.New(cfgDir, in.LogRetentionDays)
 			go a.logWriter.Cleanup()
 		}
+		a.EmitLog("info", fmt.Sprintf("日志保留天数已更新为 %d 天", in.LogRetentionDays), "")
 	}
 	if err := a.settingsStore.Save(in); err != nil {
+		a.EmitLog("error", "保存设置失败: "+err.Error(), "")
 		return fmt.Errorf("保存设置: %w", err)
 	}
 	a.settings = in
+	a.EmitLog("info", "设置已保存", "")
 	return nil
 }
 
@@ -575,6 +674,7 @@ func (a *App) ExportData() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	a.EmitLog("info", fmt.Sprintf("已导出数据（%d 个服务器，%d 个映射）", len(servers), len(allTunnels)), "")
 	return string(data), nil
 }
 
@@ -587,8 +687,10 @@ func (a *App) ImportData(raw string) error {
 	}
 	var backup BackupData
 	if err := json.Unmarshal([]byte(raw), &backup); err != nil {
+		a.EmitLog("error", "导入数据解析失败: "+err.Error(), "")
 		return fmt.Errorf("解析导入数据: %w", err)
 	}
+	a.EmitLog("info", fmt.Sprintf("开始导入数据（%d 个服务器，%d 个映射）", len(backup.Servers), len(backup.Tunnels)), "")
 	// 全量替换：删除现有 tunnels 和 servers
 	existingServers, err := a.repo.ListServers()
 	if err != nil {
@@ -596,19 +698,23 @@ func (a *App) ImportData(raw string) error {
 	}
 	for _, s := range existingServers {
 		if err := a.repo.DeleteServer(s.ID); err != nil {
+			a.EmitLog("error", "清理旧服务器失败: "+err.Error(), "")
 			return fmt.Errorf("清理旧服务器 %s: %w", s.ID, err)
 		}
 	}
 	// 插入导入的数据
 	for _, s := range backup.Servers {
 		if err := a.repo.InsertServer(s); err != nil {
+			a.EmitLog("error", "插入服务器「"+s.Name+"」失败: "+err.Error(), "")
 			return fmt.Errorf("插入服务器 %s: %w", s.Name, err)
 		}
 	}
 	for _, tu := range backup.Tunnels {
 		if err := a.repo.InsertTunnel(tu); err != nil {
+			a.EmitLog("error", "插入映射「"+tu.Name+"」失败: "+err.Error(), "")
 			return fmt.Errorf("插入映射 %s: %w", tu.Name, err)
 		}
 	}
+	a.EmitLog("info", fmt.Sprintf("数据导入完成（%d 个服务器，%d 个映射）", len(backup.Servers), len(backup.Tunnels)), "")
 	return nil
 }

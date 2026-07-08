@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Events } from '@wailsio/runtime'
 import {
@@ -7,6 +7,8 @@ import {
     Position,
     Document,
     Setting,
+    Fold,
+    Expand,
 } from '@element-plus/icons-vue'
 import { useLogStore } from '@/stores/log'
 
@@ -14,6 +16,9 @@ const route = useRoute()
 const router = useRouter()
 const active = computed(() => route.path)
 const logStore = useLogStore()
+
+// 侧边栏折叠状态：窄屏自动收起，用户也可手动切换
+const collapsed = ref(false)
 
 // 菜单项与图标映射
 const menus = [
@@ -23,7 +28,14 @@ const menus = [
     { index: '/settings', label: '设置', desc: '应用偏好设置', icon: Setting },
 ]
 
+// 监听窗口尺寸：≤900px 自动折叠侧边栏
+function handleResize() {
+    collapsed.value = window.innerWidth <= 900
+}
+
 onMounted(() => {
+    handleResize()
+    window.addEventListener('resize', handleResize)
     // 绑定后端 app.Event.Emit 的 log:append 事件
     // v3 的 Events.On 回调收到的是 WailsEvent 对象，数据在 ev.data 里
     Events.On('log:append', (ev: any) => {
@@ -36,26 +48,38 @@ onMounted(() => {
         })
     })
 })
+
+onUnmounted(() => {
+    window.removeEventListener('resize', handleResize)
+})
 </script>
 
 <template>
     <el-container class="layout">
-        <el-aside width="220px" class="aside">
+        <el-aside :width="collapsed ? '64px' : '220px'" class="aside" :class="{ collapsed }">
             <div class="brand">
                 <div class="brand-logo">F</div>
-                <div class="brand-text">
+                <div v-show="!collapsed" class="brand-text">
                     <div class="brand-title">FRP Manager</div>
                     <div class="brand-subtitle">内网穿透管理</div>
                 </div>
             </div>
-            <el-menu :default-active="active" class="side-menu" @select="(i: string) => router.push(i)">
+            <el-menu :default-active="active" class="side-menu" :collapse="collapsed" @select="(i: string) => router.push(i)">
                 <el-menu-item v-for="m in menus" :key="m.index" :index="m.index" class="side-menu-item">
                     <el-icon class="menu-icon"><component :is="m.icon" /></el-icon>
-                    <span class="menu-label">{{ m.label }}</span>
+                    <template #title><span class="menu-label">{{ m.label }}</span></template>
                 </el-menu-item>
             </el-menu>
             <div class="aside-footer">
-                <div class="version">v0.2.0</div>
+                <el-button
+                    class="collapse-btn"
+                    link
+                    :icon="collapsed ? Expand : Fold"
+                    @click="collapsed = !collapsed"
+                >
+                    <span v-if="!collapsed">收起</span>
+                </el-button>
+                <div v-if="!collapsed" class="version">v0.2.0</div>
             </div>
         </el-aside>
         <el-main class="main">
@@ -85,6 +109,10 @@ onMounted(() => {
     padding: 20px 18px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
+.aside.collapsed .brand {
+    justify-content: center;
+    padding: 20px 0;
+}
 .brand-logo {
     width: 36px;
     height: 36px;
@@ -97,11 +125,14 @@ onMounted(() => {
     align-items: center;
     justify-content: center;
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    flex-shrink: 0;
 }
 .brand-text {
     display: flex;
     flex-direction: column;
     line-height: 1.3;
+    overflow: hidden;
+    white-space: nowrap;
 }
 .brand-title {
     font-size: 15px;
@@ -119,6 +150,10 @@ onMounted(() => {
     background: transparent;
     border-right: none;
     padding: 12px 10px;
+}
+/* 折叠态：el-menu collapse 自带居中，去除自定义 padding 避免错位 */
+.aside.collapsed .side-menu {
+    padding: 12px 0;
 }
 .side-menu-item {
     height: 44px;
@@ -159,15 +194,42 @@ onMounted(() => {
     padding: 12px 18px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
+.aside.collapsed .aside-footer {
+    padding: 12px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.collapse-btn {
+    color: var(--sidebar-fg-muted);
+    width: 100%;
+    justify-content: flex-start;
+}
+.aside.collapsed .collapse-btn {
+    width: auto;
+    justify-content: center;
+}
+.collapse-btn:hover {
+    color: #fff;
+}
 .version {
     font-size: 11px;
     color: var(--sidebar-fg-muted);
+    margin-top: 4px;
 }
 
 /* 主内容区 */
 .main {
     padding: 0;
     background: var(--content-bg);
-    overflow: auto;
+    overflow: hidden;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 侧边栏宽度过渡动画 */
+.aside {
+    transition: width 0.25s ease;
 }
 </style>

@@ -258,6 +258,9 @@ async function copyUrl(url: string) {
 <style scoped>
 .page {
     padding: 24px;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
 }
 
 .page-header {
@@ -369,5 +372,26 @@ async function copyUrl(url: string) {
 .empty-text {
     margin: 8px 0 0 0;
     font-size: 13px;
+}
+
+/* 响应式：窄屏紧凑化 */
+@media (max-width: 768px) {
+    .page {
+        padding: 16px;
+    }
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    .page-title h2 {
+        font-size: 18px;
+    }
+    .actions {
+        gap: 6px;
+    }
+    .actions .el-button {
+        margin-left: 0 !important;
+    }
 }
 </style>

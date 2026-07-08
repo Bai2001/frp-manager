@@ -173,7 +173,8 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
 <style scoped>
 .page {
     padding: 24px;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
 }
@@ -365,5 +366,43 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
 }
 .log-view::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+/* 响应式：窄屏紧凑化 */
+@media (max-width: 768px) {
+    .page {
+        padding: 16px;
+    }
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .page-title h2 {
+        font-size: 18px;
+    }
+    .actions {
+        gap: 6px;
+    }
+    /* 筛选工具栏：窄屏纵向堆叠 */
+    .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .search-input,
+    .server-select {
+        width: 100%;
+    }
+    .filter-summary {
+        margin-left: 0;
+        text-align: right;
+    }
+    /* 日志行：窄屏隐藏行号，节省横向空间 */
+    .log-no {
+        display: none;
+    }
+    .log-source {
+        max-width: 80px;
+    }
 }
 </style>

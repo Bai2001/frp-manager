@@ -161,6 +161,9 @@ async function onFileSelected(e: Event) {
 .page {
     padding: 24px;
     max-width: 720px;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
 }
 
 .page-title h2 {
@@ -223,5 +226,29 @@ async function onFileSelected(e: Event) {
 .backup-actions {
     display: flex;
     gap: 8px;
+}
+
+/* 响应式：窄屏表单 label 顶部对齐、内边距紧凑 */
+@media (max-width: 768px) {
+    .page {
+        padding: 16px;
+    }
+    .page-title h2 {
+        font-size: 18px;
+    }
+    .setting-form {
+        max-width: 100%;
+    }
+    /* el-form label 在窄屏改为顶部对齐，避免标签挤压输入框 */
+    :deep(.setting-form .el-form-item__label) {
+        float: none;
+        display: block;
+        text-align: left;
+        padding: 0 0 6px 0;
+        line-height: 1.5;
+    }
+    :deep(.setting-form .el-form-item__content) {
+        margin-left: 0 !important;
+    }
 }
 </style>

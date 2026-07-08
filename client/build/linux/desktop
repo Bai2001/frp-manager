@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=FRP Manager
+Comment=基于 frp 的本地 GUI 内网穿透管理系统
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/frp-manager %u
+Terminal=false
+Type=Application
+Icon=frp-manager
+Categories=Utility;
+StartupWMClass=frp-manager
+
+ 

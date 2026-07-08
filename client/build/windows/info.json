@@ -6,10 +6,10 @@
 		"0000": {
 			"ProductVersion": "0.1.0",
 			"CompanyName": "kdc",
-			"FileDescription": "FRP Manager",
-			"LegalCopyright": "© 2026, kdc",
+			"FileDescription": "基于 frp 的本地 GUI 内网穿透管理系统",
+			"LegalCopyright": "(c) 2026, kdc",
 			"ProductName": "FRP Manager",
-			"Comments": "基于 frp 的本地 GUI 内网穿透管理系统"
+			"Comments": "FRP Manager 客户端"
 		}
 	}
 }

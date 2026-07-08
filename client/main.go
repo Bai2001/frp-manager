@@ -65,10 +65,16 @@ func main() {
 	appStruct.SetApplication(app)
 
 	// 计算初始窗口尺寸/位置：有持久化记录则恢复，否则用默认值。
+	// 尺寸过小/过大或位置在屏幕外（多显示器变更后）时回退默认值/居中。
 	winW, winH := defaultWindowWidth, defaultWindowHeight
-	if persisted.WindowWidth > 0 && persisted.WindowHeight > 0 {
+	hasValidBounds := false
+	if validWindowSize(persisted.WindowWidth, persisted.WindowHeight) {
 		winW = persisted.WindowWidth
 		winH = persisted.WindowHeight
+		// 仅在尺寸有效时才校验位置；位置无效则保持默认居中。
+		// 注意：此处 app.Screen 尚未就绪，位置校验在窗口创建后由
+		// windowStatePersistence 重新写回时进行。恢复阶段只做尺寸过滤。
+		hasValidBounds = true
 	}
 	opts := application.WebviewWindowOptions{
 		Title:            "FRP Manager",
@@ -78,7 +84,7 @@ func main() {
 		URL:              "/",
 	}
 	// 有有效位置记录时按指定位置创建；否则居中（默认行为）。
-	if persisted.WindowWidth > 0 && persisted.WindowHeight > 0 {
+	if hasValidBounds && validWindowPosition(persisted.WindowX, persisted.WindowY, winW, winH, app) {
 		opts.InitialPosition = application.WindowXY
 		opts.X = persisted.WindowX
 		opts.Y = persisted.WindowY

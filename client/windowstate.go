@@ -71,12 +71,28 @@ func (p *windowStatePersistence) scheduleBoundsSave() {
 	p.timer = time.AfterFunc(p.debounce, p.flushBounds)
 }
 
+// 窗口边界校验阈值。
+// 尺寸小于该值会导致标题栏/侧栏无法正常显示，予以过滤；
+// 尺寸过大（跨多屏或分辨率下降）也视为异常。
+const (
+	minWindowWidth  = 800
+	minWindowHeight = 600
+	maxWindowSide   = 8192
+	// 窗口至少有这么多像素落在某屏幕工作区内，才认为位置可见。
+	minVisiblePixels = 50
+)
+
 // flushBounds 读取当前窗口位置/尺寸并写回 settings。
 func (p *windowStatePersistence) flushBounds() {
 	x, y := p.window.Position()
 	w, h := p.window.Size()
-	if w <= 0 || h <= 0 {
-		return // 窗口已销毁或尺寸异常
+	if !validWindowSize(w, h) {
+		return // 窗口已销毁或尺寸异常，不写回避免污染持久化记录
+	}
+	// 位置不可见（如多显示器变更后窗口跑到屏幕外）时丢弃位置，
+	// 仅保留尺寸，下次启动回退到默认居中。
+	if !validWindowPosition(x, y, w, h, p.app.app) {
+		x, y = 0, 0
 	}
 	p.app.updateWindowBounds(x, y, w, h)
 }
@@ -106,4 +122,47 @@ func (a *App) updateWindowMaximised(maximised bool) {
 	}
 	a.settings.WindowMaximised = maximised
 	_ = a.settingsStore.Save(a.settings)
+}
+
+// validWindowSize 校验窗口尺寸是否在合理范围内。
+// 过小（<800×600）会导致 UI 无法正常显示；过大（边长>8192）通常来自
+// 跨多屏或分辨率下降后的异常值。
+func validWindowSize(w, h int) bool {
+	if w < minWindowWidth || h < minWindowHeight {
+		return false
+	}
+	if w > maxWindowSide || h > maxWindowSide {
+		return false
+	}
+	return true
+}
+
+// validWindowPosition 校验窗口位置是否可见。
+// 要求窗口与至少一块屏幕的工作区有 minVisiblePixels 像素的重叠，
+// 否则视为窗口已跑到屏幕外（多显示器变更、分辨率下降等场景）。
+// app 为 nil 或无法获取屏幕信息时，宽松放行（不阻断持久化）。
+func validWindowPosition(x, y, w, h int, app *application.App) bool {
+	if app == nil || app.Screen == nil {
+		return true
+	}
+	screens := app.Screen.GetAll()
+	if len(screens) == 0 {
+		return true
+	}
+	winRight := x + w
+	winBottom := y + h
+	for _, sc := range screens {
+		wa := sc.WorkArea
+		// 窗口与屏幕工作区的相交矩形
+		left := max(x, wa.X)
+		top := max(y, wa.Y)
+		right := min(winRight, wa.X+wa.Width)
+		bottom := min(winBottom, wa.Y+wa.Height)
+		if right > left && bottom > top {
+			if (right-left)*(bottom-top) >= minVisiblePixels*minVisiblePixels {
+				return true
+			}
+		}
+	}
+	return false
 }

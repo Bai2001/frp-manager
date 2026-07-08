@@ -6,7 +6,7 @@ require (
 	github.com/fatedier/frp v0.69.1
 	github.com/google/uuid v1.6.0
 	github.com/pelletier/go-toml/v2 v2.4.3
-	github.com/wailsapp/wails/v3 v3.0.0-alpha2.115
+	github.com/wailsapp/wails/v3 v3.0.0-alpha2.116
 	golang.org/x/sys v0.44.0
 	modernc.org/sqlite v1.53.0
 )

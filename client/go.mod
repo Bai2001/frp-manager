@@ -71,8 +71,3 @@ require (
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-// 本地 patch：把 Wails v3 popup menu 显示路径的 fatal() 降级为 error()。
-// 根因：Windows 25H2 Insider 会话上下文下 GetCursorPos 启动时返回失败，
-// Wails alpha2.115 直接 fatal 退出应用。官方未修（见 PR #5228/#5234 讨论）。
-replace github.com/wailsapp/wails/v3 => ./_wails-patch

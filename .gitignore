@@ -31,8 +31,6 @@ client/build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 wails-vfs.dat
 # v3 Taskfile 缓存目录
 .task/
-# 本地 Wails v3 patch（Windows 25H2 Insider 环境 GetCursorPos 崩溃修复，不入库）
-client/_wails-patch/
 
 # SQLite / 数据
 *.db

@@ -90,48 +90,138 @@ async function onFileSelected(e: Event) {
 </script>
 
 <template>
-  <div class="page">
-    <h2>设置</h2>
+    <div class="page">
+        <div class="page-title">
+            <h2>设置</h2>
+            <p class="page-desc">应用偏好与数据管理</p>
+        </div>
 
-    <el-form label-width="160px" style="max-width: 560px" v-loading="store.loading">
-      <el-form-item label="关闭时最小化到托盘">
-        <el-switch v-model="store.settings.close_to_tray" :loading="saving" @change="onSwitchChange" />
-      </el-form-item>
+        <div class="cards" v-loading="store.loading">
+            <!-- 通用设置 -->
+            <el-card class="setting-card" shadow="never">
+                <template #header>
+                    <div class="card-header">
+                        <span class="card-title">通用</span>
+                        <span class="card-sub">应用行为偏好</span>
+                    </div>
+                </template>
+                <el-form label-width="160px" class="setting-form">
+                    <el-form-item label="关闭时最小化到托盘">
+                        <el-switch v-model="store.settings.close_to_tray" :loading="saving" @change="onSwitchChange" />
+                    </el-form-item>
+                    <el-form-item label="开机自启">
+                        <el-switch v-model="store.settings.auto_start" :loading="saving" @change="onSwitchChange" />
+                    </el-form-item>
+                    <el-form-item label="日志保留">
+                        <el-input-number v-model="store.settings.log_retention_days" :min="0" :max="30" :loading="saving" @change="onLogRetentionChange" />
+                        <span class="hint">天（0 = 不落盘，仅内存）</span>
+                    </el-form-item>
+                </el-form>
+            </el-card>
 
-      <el-form-item label="开机自启">
-        <el-switch v-model="store.settings.auto_start" :loading="saving" @change="onSwitchChange" />
-      </el-form-item>
+            <!-- 数据目录 -->
+            <el-card class="setting-card" shadow="never">
+                <template #header>
+                    <div class="card-header">
+                        <span class="card-title">数据目录</span>
+                        <span class="card-sub">配置文件存储位置</span>
+                    </div>
+                </template>
+                <el-form label-width="160px" class="setting-form">
+                    <el-form-item label="配置目录">
+                        <el-input :model-value="store.configDir" readonly placeholder="未指定">
+                            <template #append>
+                                <el-button @click="openDir">打开目录</el-button>
+                            </template>
+                        </el-input>
+                        <div class="hint-block">当前仅展示，修改需迁移数据，暂不支持。</div>
+                    </el-form-item>
+                </el-form>
+            </el-card>
 
-      <el-form-item label="日志保留">
-        <el-input-number v-model="store.settings.log_retention_days" :min="0" :max="30" :loading="saving" @change="onLogRetentionChange" />
-        <span class="hint">天（0 = 不落盘，仅内存）</span>
-      </el-form-item>
-
-      <el-divider content-position="left">数据目录</el-divider>
-
-      <el-form-item label="配置目录">
-        <el-input :model-value="store.configDir" readonly placeholder="未指定">
-          <template #append>
-            <el-button @click="openDir">打开目录</el-button>
-          </template>
-        </el-input>
-        <div class="hint-block">当前仅展示，修改需迁移数据，暂不支持。</div>
-      </el-form-item>
-
-      <el-divider content-position="left">导入 / 导出</el-divider>
-
-      <el-form-item label="备份与恢复">
-        <el-button @click="exportData">导出数据</el-button>
-        <el-button @click="triggerImport" :loading="importing">导入数据</el-button>
-        <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onFileSelected" />
-      </el-form-item>
-    </el-form>
-  </div>
+            <!-- 导入导出 -->
+            <el-card class="setting-card" shadow="never">
+                <template #header>
+                    <div class="card-header">
+                        <span class="card-title">备份与恢复</span>
+                        <span class="card-sub">导入或导出应用数据</span>
+                    </div>
+                </template>
+                <div class="backup-actions">
+                    <el-button @click="exportData">导出数据</el-button>
+                    <el-button @click="triggerImport" :loading="importing">导入数据</el-button>
+                    <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onFileSelected" />
+                </div>
+            </el-card>
+        </div>
+    </div>
 </template>
 
 <style scoped>
-.page { padding: 16px; }
-.page h2 { margin: 0 0 16px 0; }
-.hint { margin-left: 8px; color: #909399; }
-.hint-block { margin-top: 4px; font-size: 12px; color: #909399; }
+.page {
+    padding: 24px;
+    max-width: 720px;
+}
+
+.page-title h2 {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--content-fg);
+}
+.page-desc {
+    margin: 0 0 20px 0;
+    font-size: 13px;
+    color: var(--content-fg-secondary);
+}
+
+.cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.setting-card {
+    border-radius: var(--card-radius);
+    box-shadow: var(--card-shadow);
+    border: none;
+    transition: box-shadow 0.3s ease;
+}
+.setting-card:hover {
+    box-shadow: var(--card-shadow-hover);
+}
+
+.card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--content-fg);
+}
+.card-sub {
+    font-size: 12px;
+    color: var(--content-fg-secondary);
+}
+
+.setting-form {
+    max-width: 560px;
+}
+
+.hint {
+    margin-left: 8px;
+    color: var(--content-fg-secondary);
+}
+.hint-block {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--content-fg-secondary);
+}
+
+.backup-actions {
+    display: flex;
+    gap: 8px;
+}
 </style>

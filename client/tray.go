@@ -61,15 +61,20 @@ func (t *Tray) Setup() {
 		t.systray.OpenMenu()
 	})
 
-	// 拦截窗口关闭：根据设置隐藏到托盘或允许退出
+	// 拦截窗口关闭：根据设置隐藏到托盘或真正退出
 	t.window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		if t.quitting.Load() {
-			return // 真正退出，不拦截
+			return // 真正退出中，不拦截
 		}
 		if t.closeToTrayFn != nil && t.closeToTrayFn() {
+			// 启用最小化到托盘：隐藏窗口而非关闭
 			t.window.Hide()
 			e.Cancel()
+			return
 		}
+		// 未启用最小化到托盘：关闭窗口即退出应用（托盘一并消失）
+		// 因 DisableQuitOnLastWindowClosed=true，需主动调 Quit 触发退出
+		go t.Quit()
 	})
 }
 

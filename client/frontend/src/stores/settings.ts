@@ -9,6 +9,7 @@ export const useSettingsStore = defineStore('settings', () => {
     auto_start: false,
     log_retention_days: 0,
     config_dir: '',
+    theme_mode: 'system',
   })
   const configDir = ref('')
   const loading = ref(false)
@@ -17,6 +18,10 @@ export const useSettingsStore = defineStore('settings', () => {
     loading.value = true
     try {
       settings.value = await api.getSettings()
+      // 旧配置缺 theme_mode 时按 system
+      if (!settings.value.theme_mode) {
+        settings.value.theme_mode = 'system'
+      }
       configDir.value = await api.getConfigDir()
     } catch (e: any) {
       ElMessage.error('加载设置失败: ' + e.message)

@@ -33,7 +33,7 @@
 ```
 frp-gui/
 ├─ go.work                 # Go workspace，聚合两端 module
-├─ docs/design.md          # 设计文档存档
+├─ docs/superpowers/       # 设计规格与实现计划
 ├─ server/                 # 服务端（Go 单二进制 agent）
 │  ├─ cmd/agent/           # agent 入口
 │  ├─ internal/            # config/api/store/frps/portpool/domain
@@ -86,4 +86,4 @@ wails dev
 - **v0.4**：stcp/xtcp/tcpmux/Basic Auth
 - **v1.0**：安装包发布/自动更新/多服务器
 
-详细设计见 [docs/design.md](docs/design.md)。
+详细设计见 [docs/superpowers/specs/2026-07-07-frp-manager-design.md](docs/superpowers/specs/2026-07-07-frp-manager-design.md)。

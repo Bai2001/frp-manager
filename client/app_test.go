@@ -117,7 +117,7 @@ func TestGenerateFrpcConfig(t *testing.T) {
 
 func TestSettingsSaveLoad(t *testing.T) {
 	a := newTestApp(t)
-	in := settings.Settings{CloseToTray: true, LogRetentionDays: 7}
+	in := settings.Settings{CloseToTray: true, LogRetentionDays: 7, ThemeMode: "dark"}
 	// 不测 AutoStart 真实写注册表，避免污染环境
 	if err := a.SaveSettings(in); err != nil {
 		t.Fatalf("SaveSettings: %v", err)
@@ -126,7 +126,7 @@ func TestSettingsSaveLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSettings: %v", err)
 	}
-	if got.CloseToTray != true || got.LogRetentionDays != 7 {
+	if got.CloseToTray != true || got.LogRetentionDays != 7 || got.ThemeMode != "dark" {
 		t.Errorf("设置往返不一致: %+v", got)
 	}
 }

@@ -37,6 +37,8 @@ type App struct {
 	logWriter     *logfile.Writer
 	// settings 缓存，供托盘 WindowClosing hook 同步读取（避免每次关窗都读文件）。
 	settings settings.Settings
+	// mainWindow 主窗口引用，用于运行时同步原生标题栏主题。
+	mainWindow *application.WebviewWindow
 }
 
 // NewApp 创建 App 实例（依赖由 Init/InitForTest 注入）。
@@ -50,11 +52,25 @@ func (a *App) SetApplication(app *application.App) {
 	a.app = app
 }
 
+// SetMainWindow 注入主窗口（由 main.go 创建窗口后回填）。
+func (a *App) SetMainWindow(win *application.WebviewWindow) {
+	a.mainWindow = win
+}
+
 // SetTray 注入系统托盘管理器（由 main.go 在 Tray.Setup 后回填）。
 // 当前仅供未来扩展使用（如托盘菜单显示 frpc 运行状态）。
 func (a *App) SetTray(t *Tray) {
 	// 暂存引用，供后续状态联动扩展。当前无字段，预留接口。
 	_ = t
+}
+
+// SetNativeTheme 按 theme_mode 同步原生标题栏/边框/窗口背景。
+// themeMode: system | light | dark；非法值按 system。
+func (a *App) SetNativeTheme(themeMode string) {
+	if themeMode != "light" && themeMode != "dark" && themeMode != "system" {
+		themeMode = "system"
+	}
+	applyNativeTheme(a.mainWindow, themeMode)
 }
 
 // ServiceStartup 在应用启动时由 Wails v3 调用。
@@ -569,7 +585,7 @@ func (a *App) GetSettings() (settings.Settings, error) {
 	return s, nil
 }
 
-// SaveSettings 保存设置并应用即时生效的部分（日志保留、开机自启）。
+// SaveSettings 保存设置并应用即时生效的部分（日志保留、开机自启、原生标题栏主题）。
 // 日志保留天数变化时重建 logWriter；开机自启变化时同步注册表/文件。
 // 前端不感知窗口状态字段，此处保留服务端缓存的窗口状态，避免被零值覆盖。
 func (a *App) SaveSettings(in settings.Settings) error {
@@ -582,6 +598,11 @@ func (a *App) SaveSettings(in settings.Settings) error {
 	in.WindowY = a.settings.WindowY
 	in.WindowWidth = a.settings.WindowWidth
 	in.WindowHeight = a.settings.WindowHeight
+	// 规范化 theme_mode
+	if in.ThemeMode != "light" && in.ThemeMode != "dark" && in.ThemeMode != "system" {
+		in.ThemeMode = "system"
+	}
+	themeChanged := in.ThemeMode != a.settings.ThemeMode
 	// 开机自启：与当前状态不同时执行
 	if in.AutoStart != a.settings.AutoStart {
 		var err error
@@ -620,6 +641,10 @@ func (a *App) SaveSettings(in settings.Settings) error {
 		return fmt.Errorf("保存设置: %w", err)
 	}
 	a.settings = in
+	// 主题变更时同步原生标题栏（不依赖前端绑定是否已生成）
+	if themeChanged {
+		applyNativeTheme(a.mainWindow, in.ThemeMode)
+	}
 	a.EmitLog("info", "设置已保存", "")
 	return nil
 }

@@ -67,3 +67,39 @@ func TestStoreSaveAtomicNoPartialWrite(t *testing.T) {
 		t.Errorf("覆盖失败: %+v", got)
 	}
 }
+
+func TestStoreThemeModeRoundtrip(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(filepath.Join(dir, "settings.json"))
+	in := Settings{
+		CloseToTray:      true,
+		ThemeMode:        "dark",
+		LogRetentionDays: 3,
+	}
+	if err := s.Save(in); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, err := s.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.ThemeMode != "dark" {
+		t.Errorf("ThemeMode want dark, got %q", got.ThemeMode)
+	}
+}
+
+func TestStoreThemeModeDefaultEmpty(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(filepath.Join(dir, "settings.json"))
+	// 不写 ThemeMode，模拟旧配置
+	if err := s.Save(Settings{CloseToTray: true}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ThemeMode != "" {
+		t.Errorf("旧配置缺字段应为空字符串，got %q", got.ThemeMode)
+	}
+}

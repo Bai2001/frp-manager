@@ -15,6 +15,9 @@ type Settings struct {
 	AutoStart        bool   `json:"auto_start"`         // 开机自启
 	LogRetentionDays int    `json:"log_retention_days"` // 日志保留天数，0=不落盘
 	ConfigDir        string `json:"config_dir"`         // 配置目录（只读展示，当前不支持修改）
+	// ThemeMode 外观主题：system | light | dark。
+	// 空字符串或未知值由前端按 system 处理（兼容旧配置）。
+	ThemeMode string `json:"theme_mode"`
 
 	// 窗口状态持久化（DIP 坐标，与 Wails Position()/Size() 返回值一致）。
 	// 由窗口移动/缩放/最大化事件自动写回，前端设置页不感知这些字段。

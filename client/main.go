@@ -76,12 +76,18 @@ func main() {
 		// windowStatePersistence 重新写回时进行。恢复阶段只做尺寸过滤。
 		hasValidBounds = true
 	}
+	// 启动时按已持久化的 theme_mode 配置原生标题栏，避免深色内容配白色标题栏。
+	themeMode := persisted.ThemeMode
+	if themeMode != "light" && themeMode != "dark" && themeMode != "system" {
+		themeMode = "system"
+	}
 	opts := application.WebviewWindowOptions{
 		Title:            "FRP Manager",
 		Width:            winW,
 		Height:           winH,
-		BackgroundColour: application.NewRGB(245, 247, 250),
+		BackgroundColour: backgroundColourForTheme(themeMode),
 		URL:              "/",
+		Windows:          windowsWindowOptions(themeMode),
 	}
 	// 有有效位置记录时按指定位置创建；否则居中（默认行为）。
 	if hasValidBounds && validWindowPosition(persisted.WindowX, persisted.WindowY, winW, winH, app) {
@@ -95,6 +101,9 @@ func main() {
 		window.Maximise()
 	}
 	window.Show()
+	appStruct.SetMainWindow(window)
+	// 创建后立即再刷一次，确保 DWM 自定义颜色生效
+	applyNativeTheme(window, themeMode)
 
 	// 注册窗口状态持久化：移动/缩放/最大化事件触发后节流写回 settings。
 	appStruct.SetupWindowStatePersistence(window)

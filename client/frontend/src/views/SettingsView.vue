@@ -2,7 +2,8 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSettingsStore } from '@/stores/settings'
-import { api } from '@/api'
+import { api, type ThemeMode } from '@/api'
+import { watchTheme } from '@/composables/useTheme'
 
 const store = useSettingsStore()
 const saving = ref(false)
@@ -10,7 +11,9 @@ const importing = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 onMounted(() => {
-  store.load()
+  store.load().then(() => {
+    watchTheme(store.settings.theme_mode)
+  })
 })
 
 async function onSwitchChange() {
@@ -18,6 +21,22 @@ async function onSwitchChange() {
   try {
     await store.save()
     ElMessage.success('设置已保存')
+  } finally {
+    saving.value = false
+  }
+}
+
+/**
+ * 外观主题变更：立即应用并持久化
+ */
+async function onThemeChange(val: string | number | boolean | undefined) {
+  const mode = (val === 'light' || val === 'dark' || val === 'system' ? val : 'system') as ThemeMode
+  store.settings.theme_mode = mode
+  watchTheme(mode)
+  saving.value = true
+  try {
+    await store.save()
+    ElMessage.success('外观主题已保存')
   } finally {
     saving.value = false
   }
@@ -106,6 +125,17 @@ async function onFileSelected(e: Event) {
                     </div>
                 </template>
                 <el-form label-width="160px" class="setting-form">
+                    <el-form-item label="外观主题">
+                        <el-radio-group
+                            :model-value="store.settings.theme_mode || 'system'"
+                            :disabled="saving"
+                            @change="onThemeChange"
+                        >
+                            <el-radio-button value="system">跟随系统</el-radio-button>
+                            <el-radio-button value="light">浅色</el-radio-button>
+                            <el-radio-button value="dark">深色</el-radio-button>
+                        </el-radio-group>
+                    </el-form-item>
                     <el-form-item label="关闭时最小化到托盘">
                         <el-switch v-model="store.settings.close_to_tray" :loading="saving" @change="onSwitchChange" />
                     </el-form-item>
@@ -187,7 +217,8 @@ async function onFileSelected(e: Event) {
 .setting-card {
     border-radius: var(--card-radius);
     box-shadow: var(--card-shadow);
-    border: none;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     transition: box-shadow 0.3s ease;
 }
 .setting-card:hover {

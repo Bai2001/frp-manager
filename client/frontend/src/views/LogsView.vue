@@ -234,8 +234,8 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
     border-radius: 16px;
     font-size: 12px;
     font-weight: 500;
-    background: #fff;
-    border: 1px solid #ebeef5;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     cursor: pointer;
     user-select: none;
     transition: all 0.2s ease;
@@ -268,11 +268,12 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
     color: var(--content-fg);
 }
 
-/* 终端 */
+/* 日志面板（浅色/深色均走终端令牌） */
 .log-view {
     flex: 1;
     overflow: auto;
     background: linear-gradient(180deg, var(--terminal-bg) 0%, var(--terminal-bg-soft) 100%);
+    border: 1px solid var(--terminal-border);
     border-radius: var(--card-radius);
     padding: 14px 16px;
     font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
@@ -289,13 +290,13 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
     position: relative;
 }
 .log-line:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--terminal-line-hover);
 }
 .log-line:hover .copy-row {
     opacity: 1;
 }
 .log-no {
-    color: #565f89;
+    color: var(--terminal-no);
     width: 44px;
     flex-shrink: 0;
     user-select: none;
@@ -303,7 +304,7 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
     padding-right: 12px;
 }
 .log-time {
-    color: #7aa2f7;
+    color: var(--terminal-time);
     margin-right: 10px;
     flex-shrink: 0;
 }
@@ -312,12 +313,12 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
     flex-shrink: 0;
     font-weight: 600;
 }
-.log-line.info .log-level { color: #7dcfff; }
-.log-line.warn .log-level { color: #e0af68; }
-.log-line.error .log-level { color: #f7768e; }
-.log-line.error .log-msg { color: #f7768e; }
+.log-line.info .log-level { color: var(--terminal-level-info); }
+.log-line.warn .log-level { color: var(--terminal-level-warn); }
+.log-line.error .log-level { color: var(--terminal-level-error); }
+.log-line.error .log-msg { color: var(--terminal-level-error); }
 .log-source {
-    color: #9ece6a;
+    color: var(--terminal-source);
     margin-right: 10px;
     flex-shrink: 0;
     max-width: 120px;
@@ -334,13 +335,13 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
 /* 单行复制按钮：默认隐藏，悬浮显示 */
 .copy-row {
     opacity: 0;
-    color: #565f89;
+    color: var(--terminal-no);
     flex-shrink: 0;
     margin-left: 4px;
     transition: opacity 0.2s ease;
 }
 .copy-row:hover {
-    color: #7aa2f7;
+    color: var(--terminal-time);
 }
 
 /* 空状态 */
@@ -349,11 +350,11 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #565f89;
+    color: var(--terminal-empty);
     font-size: 13px;
 }
 
-/* 终端滚动条 */
+/* 日志区滚动条 */
 .log-view::-webkit-scrollbar {
     width: 6px;
 }
@@ -361,11 +362,11 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
     background: transparent;
 }
 .log-view::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--terminal-scrollbar);
     border-radius: 3px;
 }
 .log-view::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--terminal-scrollbar-hover);
 }
 
 /* 响应式：窄屏紧凑化 */

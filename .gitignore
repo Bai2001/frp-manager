@@ -66,3 +66,6 @@ tmp/
 
 # Git worktrees（本地隔离开发目录）
 .worktrees/
+
+# Superpowers brainstorm 视觉伴侣临时产物
+.superpowers/

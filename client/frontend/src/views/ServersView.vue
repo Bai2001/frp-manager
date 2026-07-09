@@ -134,7 +134,8 @@ async function handleCheckCapabilities(row: ServerInfo) {
 .table-card {
     border-radius: var(--card-radius);
     box-shadow: var(--card-shadow);
-    border: none;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     transition: box-shadow 0.3s ease;
 }
 .table-card:hover {
@@ -144,14 +145,19 @@ async function handleCheckCapabilities(row: ServerInfo) {
 /* 现代表格 */
 :deep(.modern-table) {
     --el-table-border-color: transparent;
-    --el-table-header-bg-color: #fafbfc;
+    --el-table-header-bg-color: var(--table-header-bg);
+    --el-table-bg-color: var(--card-bg);
+    --el-table-tr-bg-color: var(--card-bg);
+    --el-table-text-color: var(--content-fg);
+    --el-table-header-text-color: var(--content-fg);
+    --el-fill-color-blank: var(--card-bg);
 }
 :deep(.modern-table th.el-table__cell) {
     font-weight: 600;
     color: var(--content-fg);
 }
 :deep(.modern-table .el-table__row:hover > td) {
-    background: #f0f5ff !important;
+    background: var(--table-row-hover) !important;
 }
 
 /* 名称单元格 */
@@ -175,7 +181,7 @@ async function handleCheckCapabilities(row: ServerInfo) {
 }
 .empty-icon {
     font-size: 48px;
-    color: #d3d6db;
+    color: var(--empty-icon);
     margin-bottom: 12px;
 }
 .empty-text {

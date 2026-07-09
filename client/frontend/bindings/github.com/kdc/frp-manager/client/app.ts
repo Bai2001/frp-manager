@@ -165,7 +165,7 @@ export function RestartFrpc(serverId: string): $CancellablePromise<void> {
 }
 
 /**
- * SaveSettings 保存设置并应用即时生效的部分（日志保留、开机自启）。
+ * SaveSettings 保存设置并应用即时生效的部分（日志保留、开机自启、原生标题栏主题）。
  * 日志保留天数变化时重建 logWriter；开机自启变化时同步注册表/文件。
  * 前端不感知窗口状态字段，此处保留服务端缓存的窗口状态，避免被零值覆盖。
  */
@@ -179,6 +179,21 @@ export function SaveSettings($in: settings$0.Settings): $CancellablePromise<void
  */
 export function SetApplication(app: application$0.App | null): $CancellablePromise<void> {
     return $Call.ByID(4121261467, app);
+}
+
+/**
+ * SetMainWindow 注入主窗口（由 main.go 创建窗口后回填）。
+ */
+export function SetMainWindow(win: application$0.WebviewWindow | null): $CancellablePromise<void> {
+    return $Call.ByID(843697430, win);
+}
+
+/**
+ * SetNativeTheme 按 theme_mode 同步原生标题栏/边框/窗口背景。
+ * themeMode: system | light | dark；非法值按 system。
+ */
+export function SetNativeTheme(themeMode: string): $CancellablePromise<void> {
+    return $Call.ByID(1341038125, themeMode);
 }
 
 /**

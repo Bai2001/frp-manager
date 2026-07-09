@@ -80,12 +80,17 @@ export interface DomainCheckResult {
   reason: string
 }
 
+/** 外观主题：跟随系统 / 浅色 / 深色 */
+export type ThemeMode = 'system' | 'light' | 'dark'
+
 // 应用设置，对应后端 settings.Settings（snake_case 匹配 JSON tag）
 export interface Settings {
   close_to_tray: boolean
   auto_start: boolean
   log_retention_days: number
   config_dir: string
+  /** 外观主题：system | light | dark；缺省按 system */
+  theme_mode: ThemeMode
   // 窗口状态持久化字段：由后端窗口事件自动维护，前端设置页不编辑。
   // 声明为可选，往返保存时由后端保留原值，前端无需感知。
   window_maximised?: boolean
@@ -165,6 +170,12 @@ export const api = {
   },
   async saveSettings(s: Settings): Promise<void> {
     await call(AppService.SaveSettings, s)
+  },
+  /**
+   * 同步原生窗口标题栏主题（system | light | dark）
+   */
+  async setNativeTheme(themeMode: ThemeMode | string): Promise<void> {
+    await call(AppService.SetNativeTheme, themeMode)
   },
   async getConfigDir(): Promise<string> {
     return await call(AppService.GetConfigDir)

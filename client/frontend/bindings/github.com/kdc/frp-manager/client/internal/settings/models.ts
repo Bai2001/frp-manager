@@ -27,6 +27,12 @@ export interface Settings {
     "config_dir": string;
 
     /**
+     * ThemeMode 外观主题：system | light | dark。
+     * 空字符串或未知值由前端按 system 处理（兼容旧配置）。
+     */
+    "theme_mode": string;
+
+    /**
      * 窗口状态持久化（DIP 坐标，与 Wails Position()/Size() 返回值一致）。
      * 由窗口移动/缩放/最大化事件自动写回，前端设置页不感知这些字段。
      * WindowWidth/WindowHeight 为 0 时表示无记录，使用默认尺寸。

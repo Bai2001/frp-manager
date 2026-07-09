@@ -1,10 +1,24 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, VideoPlay, VideoPause, RefreshRight, Delete, Share, CopyDocument } from '@element-plus/icons-vue'
+import {
+    Plus,
+    VideoPlay,
+    VideoPause,
+    RefreshRight,
+    Delete,
+    Share,
+    CopyDocument,
+} from '@element-plus/icons-vue'
 import { useServerStore } from '@/stores/server'
 import { useTunnelStore } from '@/stores/tunnel'
-import { api, type AddTunnelInput, type Capabilities, type TunnelInfo, type ServerInfo } from '@/api'
+import {
+    api,
+    type AddTunnelInput,
+    type Capabilities,
+    type TunnelInfo,
+    type ServerInfo,
+} from '@/api'
 import TunnelFormDialog from '@/components/TunnelFormDialog.vue'
 
 const serverStore = useServerStore()
@@ -149,9 +163,14 @@ function buildAccessUrl(tu: TunnelInfo): string {
         }
         // 回退：直接用服务器 host + vhost 端口
         if (!domain) {
-            const vhostPort = tu.protocol === 'https' ? caps?.vhost_https_port : caps?.vhost_http_port
+            const vhostPort =
+                tu.protocol === 'https' ? caps?.vhost_https_port : caps?.vhost_http_port
             if (!vhostPort) return ''
-            const portSuffix = (tu.protocol === 'http' && vhostPort === 80) || (tu.protocol === 'https' && vhostPort === 443) ? '' : `:${vhostPort}`
+            const portSuffix =
+                (tu.protocol === 'http' && vhostPort === 80) ||
+                (tu.protocol === 'https' && vhostPort === 443)
+                    ? ''
+                    : `:${vhostPort}`
             return `${tu.protocol}://${host}${portSuffix}`
         }
         // 自定义域名 / 子域名：默认 80/443，无需带 vhost 端口
@@ -187,13 +206,31 @@ async function copyUrl(url: string) {
                 <p class="page-desc">配置内网穿透规则</p>
             </div>
             <div class="actions">
-                <el-select v-model="selectedServerId" placeholder="选择服务器" @change="onServerChange" style="width: 180px">
-                    <el-option v-for="s in serverStore.servers" :key="s.id" :label="s.name" :value="s.id" />
+                <el-select
+                    v-model="selectedServerId"
+                    placeholder="选择服务器"
+                    @change="onServerChange"
+                    style="width: 180px"
+                >
+                    <el-option
+                        v-for="s in serverStore.servers"
+                        :key="s.id"
+                        :label="s.name"
+                        :value="s.id"
+                    />
                 </el-select>
-                <el-button type="primary" :icon="Plus" @click="openCreate" :disabled="!hasServer">创建映射</el-button>
-                <el-button :icon="VideoPlay" @click="handleStart" :disabled="!hasServer">启动</el-button>
-                <el-button :icon="VideoPause" @click="handleStop" :disabled="!hasServer">停止</el-button>
-                <el-button :icon="RefreshRight" @click="handleRestart" :disabled="!hasServer">重启</el-button>
+                <el-button type="primary" :icon="Plus" @click="openCreate" :disabled="!hasServer"
+                    >创建映射</el-button
+                >
+                <el-button :icon="VideoPlay" @click="handleStart" :disabled="!hasServer"
+                    >启动</el-button
+                >
+                <el-button :icon="VideoPause" @click="handleStop" :disabled="!hasServer"
+                    >停止</el-button
+                >
+                <el-button :icon="RefreshRight" @click="handleRestart" :disabled="!hasServer"
+                    >重启</el-button
+                >
             </div>
         </div>
 
@@ -230,8 +267,15 @@ async function copyUrl(url: string) {
                 <el-table-column label="frpc 状态" width="130">
                     <template #default="{ row }">
                         <div class="status-cell">
-                            <span class="status-dot" :class="runningMap[row.server_id] ? 'running' : 'stopped'"></span>
-                            <el-tag :type="runningMap[row.server_id] ? 'success' : 'info'" size="small" effect="light">
+                            <span
+                                class="status-dot"
+                                :class="runningMap[row.server_id] ? 'running' : 'stopped'"
+                            ></span>
+                            <el-tag
+                                :type="runningMap[row.server_id] ? 'success' : 'info'"
+                                size="small"
+                                effect="light"
+                            >
                                 {{ runningMap[row.server_id] ? '运行中' : '已停止' }}
                             </el-tag>
                         </div>
@@ -239,7 +283,14 @@ async function copyUrl(url: string) {
                 </el-table-column>
                 <el-table-column label="操作" width="120" fixed="right">
                     <template #default="{ row }">
-                        <el-button size="small" link type="danger" :icon="Delete" @click="handleDelete(row.id)">删除</el-button>
+                        <el-button
+                            size="small"
+                            link
+                            type="danger"
+                            :icon="Delete"
+                            @click="handleDelete(row.id)"
+                            >删除</el-button
+                        >
                     </template>
                 </el-table-column>
                 <template #empty>
@@ -251,7 +302,11 @@ async function copyUrl(url: string) {
             </el-table>
         </el-card>
 
-        <TunnelFormDialog v-model:visible="dialogVisible" :server-id="selectedServerId" @submit="handleSubmit" />
+        <TunnelFormDialog
+            v-model:visible="dialogVisible"
+            :server-id="selectedServerId"
+            @submit="handleSubmit"
+        />
     </div>
 </template>
 
@@ -360,8 +415,13 @@ async function copyUrl(url: string) {
     background: var(--status-stopped);
 }
 @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); }
-    50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.1); }
+    0%,
+    100% {
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.1);
+    }
 }
 
 /* 空状态 */

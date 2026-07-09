@@ -11,100 +11,108 @@ const importing = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 onMounted(() => {
-  store.load().then(() => {
-    watchTheme(store.settings.theme_mode)
-  })
+    store.load().then(() => {
+        watchTheme(store.settings.theme_mode)
+    })
 })
 
 async function onSwitchChange() {
-  saving.value = true
-  try {
-    await store.save()
-    ElMessage.success('设置已保存')
-  } finally {
-    saving.value = false
-  }
+    saving.value = true
+    try {
+        await store.save()
+    } catch (e: any) {
+        ElMessage.error('保存设置失败: ' + e.message)
+    } finally {
+        saving.value = false
+    }
 }
 
 /**
  * 外观主题变更：立即应用并持久化
  */
 async function onThemeChange(val: string | number | boolean | undefined) {
-  const mode = (val === 'light' || val === 'dark' || val === 'system' ? val : 'system') as ThemeMode
-  store.settings.theme_mode = mode
-  watchTheme(mode)
-  saving.value = true
-  try {
-    await store.save()
-    ElMessage.success('外观主题已保存')
-  } finally {
-    saving.value = false
-  }
+    const mode = (
+        val === 'light' || val === 'dark' || val === 'system' ? val : 'system'
+    ) as ThemeMode
+    store.settings.theme_mode = mode
+    watchTheme(mode)
+    saving.value = true
+    try {
+        await store.save()
+    } catch (e: any) {
+        ElMessage.error('保存外观主题失败: ' + e.message)
+    } finally {
+        saving.value = false
+    }
 }
 
 async function onLogRetentionChange() {
-  saving.value = true
-  try {
-    await store.save()
-    ElMessage.success('日志保留设置已保存')
-  } finally {
-    saving.value = false
-  }
+    saving.value = true
+    try {
+        await store.save()
+    } catch (e: any) {
+        ElMessage.error('保存日志保留设置失败: ' + e.message)
+    } finally {
+        saving.value = false
+    }
 }
 
 async function openDir() {
-  try {
-    await api.openConfigDir()
-  } catch (e: any) {
-    ElMessage.error('打开目录失败: ' + e.message)
-  }
+    try {
+        await api.openConfigDir()
+    } catch (e: any) {
+        ElMessage.error('打开目录失败: ' + e.message)
+    }
 }
 
 async function exportData() {
-  try {
-    const raw = await api.exportData()
-    const blob = new Blob([raw], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    const ts = new Date().toISOString().slice(0, 10)
-    a.download = `frp-manager-backup-${ts}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    ElMessage.success('数据已导出')
-  } catch (e: any) {
-    ElMessage.error('导出失败: ' + e.message)
-  }
+    try {
+        const raw = await api.exportData()
+        const blob = new Blob([raw], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        const ts = new Date().toISOString().slice(0, 10)
+        a.download = `frp-manager-backup-${ts}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+    } catch (e: any) {
+        ElMessage.error('导出失败: ' + e.message)
+    }
 }
 
 function triggerImport() {
-  fileInput.value?.click()
+    fileInput.value?.click()
 }
 
 async function onFileSelected(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  importing.value = true
-  try {
-    const text = await file.text()
-    await ElMessageBox.confirm(
-      '导入将清空并替换当前所有服务器和映射数据，确定继续？',
-      '导入确认',
-      { type: 'warning', confirmButtonText: '确定导入', cancelButtonText: '取消' },
-    )
-    await api.importData(text)
-    ElMessage.success('数据已导入，请刷新服务器/映射列表')
-  } catch (e: any) {
-    if (e !== 'cancel' && e?.message !== 'cancel') {
-      ElMessage.error('导入失败: ' + (e?.message ?? e))
+    const input = e.target as HTMLInputElement
+    const file = input.files?.[0]
+    if (!file) return
+    importing.value = true
+    try {
+        const text = await file.text()
+        await ElMessageBox.confirm(
+            '导入将清空并替换当前所有服务器和映射数据，确定继续？',
+            '导入确认',
+            {
+                type: 'warning',
+                confirmButtonText: '确定导入',
+                cancelButtonText: '取消',
+            }
+        )
+        await api.importData(text)
+        ElMessage.success('数据已导入，请刷新服务器/映射列表')
+    } catch (e: any) {
+        if (e !== 'cancel' && e?.message !== 'cancel') {
+            ElMessage.error('导入失败: ' + (e?.message ?? e))
+        }
+    } finally {
+        importing.value = false
+        input.value = '' // 允许重复导入同一文件
     }
-  } finally {
-    importing.value = false
-    input.value = '' // 允许重复导入同一文件
-  }
 }
 </script>
 
@@ -137,13 +145,27 @@ async function onFileSelected(e: Event) {
                         </el-radio-group>
                     </el-form-item>
                     <el-form-item label="关闭时最小化到托盘">
-                        <el-switch v-model="store.settings.close_to_tray" :loading="saving" @change="onSwitchChange" />
+                        <el-switch
+                            v-model="store.settings.close_to_tray"
+                            :loading="saving"
+                            @change="onSwitchChange"
+                        />
                     </el-form-item>
                     <el-form-item label="开机自启">
-                        <el-switch v-model="store.settings.auto_start" :loading="saving" @change="onSwitchChange" />
+                        <el-switch
+                            v-model="store.settings.auto_start"
+                            :loading="saving"
+                            @change="onSwitchChange"
+                        />
                     </el-form-item>
                     <el-form-item label="日志保留">
-                        <el-input-number v-model="store.settings.log_retention_days" :min="0" :max="30" :loading="saving" @change="onLogRetentionChange" />
+                        <el-input-number
+                            v-model="store.settings.log_retention_days"
+                            :min="0"
+                            :max="30"
+                            :loading="saving"
+                            @change="onLogRetentionChange"
+                        />
                         <span class="hint">天（0 = 不落盘，仅内存）</span>
                     </el-form-item>
                 </el-form>
@@ -180,7 +202,13 @@ async function onFileSelected(e: Event) {
                 <div class="backup-actions">
                     <el-button @click="exportData">导出数据</el-button>
                     <el-button @click="triggerImport" :loading="importing">导入数据</el-button>
-                    <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onFileSelected" />
+                    <input
+                        ref="fileInput"
+                        type="file"
+                        accept=".json,application/json"
+                        style="display: none"
+                        @change="onFileSelected"
+                    />
                 </div>
             </el-card>
         </div>

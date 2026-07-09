@@ -35,7 +35,9 @@ async function handleSubmit(input: AddServerInput) {
 }
 
 async function handleDelete(row: ServerInfo) {
-    await ElMessageBox.confirm(`确认删除服务器「${row.name}」？其下映射将一并删除。`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确认删除服务器「${row.name}」？其下映射将一并删除。`, '确认', {
+        type: 'warning',
+    })
     await store.deleteServer(row.id)
 }
 
@@ -60,7 +62,14 @@ async function handleCheckCapabilities(row: ServerInfo) {
                     <template #default="{ row }">
                         <div class="cell-name">
                             <span class="name-text">{{ row.name }}</span>
-                            <el-tag v-if="row.is_default" type="warning" size="small" effect="dark" class="default-tag">默认</el-tag>
+                            <el-tag
+                                v-if="row.is_default"
+                                type="warning"
+                                size="small"
+                                effect="dark"
+                                class="default-tag"
+                                >默认</el-tag
+                            >
                         </div>
                     </template>
                 </el-table-column>
@@ -69,9 +78,24 @@ async function handleCheckCapabilities(row: ServerInfo) {
                 <el-table-column prop="agent_url" label="Agent 地址" min-width="180" />
                 <el-table-column label="操作" width="280" fixed="right">
                     <template #default="{ row }">
-                        <el-button size="small" link :icon="Cpu" @click="handleCheckCapabilities(row)">检测能力</el-button>
-                        <el-button size="small" link :icon="Edit" @click="openEdit(row)">编辑</el-button>
-                        <el-button size="small" link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
+                        <el-button
+                            size="small"
+                            link
+                            :icon="Cpu"
+                            @click="handleCheckCapabilities(row)"
+                            >检测能力</el-button
+                        >
+                        <el-button size="small" link :icon="Edit" @click="openEdit(row)"
+                            >编辑</el-button
+                        >
+                        <el-button
+                            size="small"
+                            link
+                            type="danger"
+                            :icon="Delete"
+                            @click="handleDelete(row)"
+                            >删除</el-button
+                        >
                     </template>
                 </el-table-column>
                 <template #empty>
@@ -83,23 +107,46 @@ async function handleCheckCapabilities(row: ServerInfo) {
             </el-table>
         </el-card>
 
-        <ServerFormDialog v-model:visible="dialogVisible" :editing="editing" @submit="handleSubmit" />
+        <ServerFormDialog
+            v-model:visible="dialogVisible"
+            :editing="editing"
+            @submit="handleSubmit"
+        />
 
-        <el-dialog v-model="store.capabilities" title="服务端能力" width="560px" v-if="store.capabilities">
+        <el-dialog
+            v-model="store.capabilities"
+            title="服务端能力"
+            width="560px"
+            v-if="store.capabilities"
+        >
             <el-descriptions :column="2" border>
-                <el-descriptions-item label="frps 运行">{{ store.capabilities.frps_running ? '是' : '否' }}</el-descriptions-item>
-                <el-descriptions-item label="frps 版本">{{ store.capabilities.frps_version || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="bind 端口">{{ store.capabilities.bind_port }}</el-descriptions-item>
-                <el-descriptions-item label="HTTP vhost">{{ store.capabilities.vhost_http_port || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="HTTPS vhost">{{ store.capabilities.vhost_https_port || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="子域名根">{{ store.capabilities.subdomain_host || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="frps 运行">{{
+                    store.capabilities.frps_running ? '是' : '否'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="frps 版本">{{
+                    store.capabilities.frps_version || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="bind 端口">{{
+                    store.capabilities.bind_port
+                }}</el-descriptions-item>
+                <el-descriptions-item label="HTTP vhost">{{
+                    store.capabilities.vhost_http_port || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="HTTPS vhost">{{
+                    store.capabilities.vhost_https_port || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="子域名根">{{
+                    store.capabilities.subdomain_host || '-'
+                }}</el-descriptions-item>
                 <el-descriptions-item label="支持协议">
                     <el-tag v-if="store.capabilities.support_tcp" size="small">TCP</el-tag>
                     <el-tag v-if="store.capabilities.support_udp" size="small">UDP</el-tag>
                     <el-tag v-if="store.capabilities.support_http" size="small">HTTP</el-tag>
                     <el-tag v-if="store.capabilities.support_https" size="small">HTTPS</el-tag>
                 </el-descriptions-item>
-                <el-descriptions-item label="允许根域名">{{ store.capabilities.allowed_root_domains.join(', ') }}</el-descriptions-item>
+                <el-descriptions-item label="允许根域名">{{
+                    store.capabilities.allowed_root_domains.join(', ')
+                }}</el-descriptions-item>
             </el-descriptions>
         </el-dialog>
     </div>

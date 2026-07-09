@@ -18,8 +18,11 @@ app.mount('#app')
 
 // 启动后加载设置并应用主题（避免阻塞 mount）
 const settingsStore = useSettingsStore()
-settingsStore.load().then(() => {
-    watchTheme(settingsStore.settings.theme_mode)
-}).catch(() => {
-    watchTheme('system')
-})
+settingsStore
+    .load()
+    .then(() => {
+        watchTheme(settingsStore.settings.theme_mode)
+    })
+    .catch(() => {
+        watchTheme('system')
+    })

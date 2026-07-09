@@ -2,14 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Events } from '@wailsio/runtime'
-import {
-    Connection,
-    Position,
-    Document,
-    Setting,
-    Fold,
-    Expand,
-} from '@element-plus/icons-vue'
+import { Connection, Position, Document, Setting, Fold, Expand } from '@element-plus/icons-vue'
 import { useLogStore } from '@/stores/log'
 
 const route = useRoute()
@@ -17,12 +10,23 @@ const router = useRouter()
 const active = computed(() => route.path)
 const logStore = useLogStore()
 
+// ElMessage 全局配置：缩短默认时长（原 3000ms）
+const messageConfig = {
+    max: 3,
+    duration: 1500,
+}
+
 // 侧边栏折叠状态：窄屏自动收起，用户也可手动切换
 const collapsed = ref(false)
 
 // 菜单项与图标映射
 const menus = [
-    { index: '/servers', label: '服务器', desc: '管理 frps 服务端', icon: Connection },
+    {
+        index: '/servers',
+        label: '服务器',
+        desc: '管理 frps 服务端',
+        icon: Connection,
+    },
     { index: '/tunnels', label: '映射', desc: '配置内网穿透', icon: Position },
     { index: '/logs', label: '日志', desc: '查看运行日志', icon: Document },
     { index: '/settings', label: '设置', desc: '应用偏好设置', icon: Setting },
@@ -55,41 +59,52 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <el-container class="layout">
-        <!-- 宽度由 CSS 控制，避免 el-aside :width 与 collapse 双重重排导致卡顿 -->
-        <el-aside width="220px" class="aside" :class="{ collapsed }">
-            <div class="brand">
-                <div class="brand-logo">F</div>
-                <div class="brand-text">
-                    <div class="brand-title">FRP Manager</div>
-                    <div class="brand-subtitle">内网穿透管理</div>
+    <el-config-provider :message="messageConfig">
+        <el-container class="layout">
+            <!-- 宽度由 CSS 控制，避免 el-aside :width 与 collapse 双重重排导致卡顿 -->
+            <el-aside width="220px" class="aside" :class="{ collapsed }">
+                <div class="brand">
+                    <div class="brand-logo">F</div>
+                    <div class="brand-text">
+                        <div class="brand-title">FRP Manager</div>
+                        <div class="brand-subtitle">内网穿透管理</div>
+                    </div>
                 </div>
-            </div>
-            <!-- 不用 el-menu collapse，文字用 CSS 渐隐，避免菜单结构瞬切 -->
-            <el-menu :default-active="active" class="side-menu" @select="(i: string) => router.push(i)">
-                <el-menu-item v-for="m in menus" :key="m.index" :index="m.index" class="side-menu-item">
-                    <el-icon class="menu-icon"><component :is="m.icon" /></el-icon>
-                    <template #title>
-                        <span class="menu-label">{{ m.label }}</span>
-                    </template>
-                </el-menu-item>
-            </el-menu>
-            <div class="aside-footer">
-                <el-button
-                    class="collapse-btn"
-                    link
-                    :icon="collapsed ? Expand : Fold"
-                    @click="collapsed = !collapsed"
+                <!-- 不用 el-menu collapse，文字用 CSS 渐隐，避免菜单结构瞬切 -->
+                <el-menu
+                    :default-active="active"
+                    class="side-menu"
+                    @select="(i: string) => router.push(i)"
                 >
-                    <span class="collapse-text">收起</span>
-                </el-button>
-                <div class="version">v0.2.0</div>
-            </div>
-        </el-aside>
-        <el-main class="main">
-            <router-view />
-        </el-main>
-    </el-container>
+                    <el-menu-item
+                        v-for="m in menus"
+                        :key="m.index"
+                        :index="m.index"
+                        class="side-menu-item"
+                    >
+                        <el-icon class="menu-icon"><component :is="m.icon" /></el-icon>
+                        <template #title>
+                            <span class="menu-label">{{ m.label }}</span>
+                        </template>
+                    </el-menu-item>
+                </el-menu>
+                <div class="aside-footer">
+                    <el-button
+                        class="collapse-btn"
+                        link
+                        :icon="collapsed ? Expand : Fold"
+                        @click="collapsed = !collapsed"
+                    >
+                        <span class="collapse-text">收起</span>
+                    </el-button>
+                    <div class="version">v0.2.0</div>
+                </div>
+            </el-aside>
+            <el-main class="main">
+                <router-view />
+            </el-main>
+        </el-container>
+    </el-config-provider>
 </template>
 
 <style scoped>
@@ -151,7 +166,9 @@ onUnmounted(() => {
     white-space: nowrap;
     opacity: 1;
     max-width: 140px;
-    transition: opacity 0.2s ease, max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        opacity 0.2s ease,
+        max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .aside.collapsed .brand-text {
     opacity: 0;
@@ -191,7 +208,10 @@ onUnmounted(() => {
     color: var(--sidebar-fg);
     padding-left: 14px !important;
     padding-right: 14px !important;
-    transition: background-color 0.2s ease, color 0.2s ease, padding 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease,
+        padding 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .aside.collapsed .side-menu-item {
     padding-left: 0 !important;
@@ -234,7 +254,9 @@ onUnmounted(() => {
     opacity: 1;
     max-width: 120px;
     vertical-align: middle;
-    transition: opacity 0.18s ease, max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        opacity 0.18s ease,
+        max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .aside.collapsed .menu-label {
     opacity: 0;
@@ -273,7 +295,9 @@ onUnmounted(() => {
     opacity: 1;
     max-width: 48px;
     margin-left: 4px;
-    transition: opacity 0.18s ease, max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        opacity 0.18s ease,
+        max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .aside.collapsed .collapse-text {
     opacity: 0;
@@ -288,7 +312,9 @@ onUnmounted(() => {
     white-space: nowrap;
     opacity: 1;
     max-height: 20px;
-    transition: opacity 0.18s ease, max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        opacity 0.18s ease,
+        max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .aside.collapsed .version {
     opacity: 0;

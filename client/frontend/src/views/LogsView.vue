@@ -34,7 +34,7 @@ watch(
         if (logContainer.value) {
             logContainer.value.scrollTop = logContainer.value.scrollHeight
         }
-    },
+    }
 )
 
 /**
@@ -59,7 +59,10 @@ function exportLogs() {
         return
     }
     const content = store.filtered
-        .map((l) => `[${l.time}] [${l.level.toUpperCase()}] [${store.serverName(l.server_id)}] ${l.message}`)
+        .map(
+            (l) =>
+                `[${l.time}] [${l.level.toUpperCase()}] [${store.serverName(l.server_id)}] ${l.message}`
+        )
         .join('\n')
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -71,7 +74,6 @@ function exportLogs() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    ElMessage.success(`已导出 ${store.filtered.length} 条日志`)
 }
 
 /**
@@ -90,17 +92,29 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
                 <p class="page-desc">实时运行日志（最近 2000 条）</p>
             </div>
             <div class="actions">
-                <div class="stat-badge info" :class="{ active: store.levelFilter === 'info' }" @click="toggleLevel('info')">
+                <div
+                    class="stat-badge info"
+                    :class="{ active: store.levelFilter === 'info' }"
+                    @click="toggleLevel('info')"
+                >
                     <span class="stat-dot"></span>
                     <span class="stat-label">INFO</span>
                     <span class="stat-count">{{ store.counts.info }}</span>
                 </div>
-                <div class="stat-badge warn" :class="{ active: store.levelFilter === 'warn' }" @click="toggleLevel('warn')">
+                <div
+                    class="stat-badge warn"
+                    :class="{ active: store.levelFilter === 'warn' }"
+                    @click="toggleLevel('warn')"
+                >
                     <span class="stat-dot"></span>
                     <span class="stat-label">WARN</span>
                     <span class="stat-count">{{ store.counts.warn }}</span>
                 </div>
-                <div class="stat-badge error" :class="{ active: store.levelFilter === 'error' }" @click="toggleLevel('error')">
+                <div
+                    class="stat-badge error"
+                    :class="{ active: store.levelFilter === 'error' }"
+                    @click="toggleLevel('error')"
+                >
                     <span class="stat-dot"></span>
                     <span class="stat-label">ERROR</span>
                     <span class="stat-count">{{ store.counts.error }}</span>
@@ -111,7 +125,8 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
                         :type="autoScroll ? 'primary' : 'default'"
                         :icon="ArrowDown"
                         @click="autoScroll = !autoScroll"
-                    >{{ autoScroll ? '自动' : '手动' }}</el-button>
+                        >{{ autoScroll ? '自动' : '手动' }}</el-button
+                    >
                 </el-tooltip>
                 <el-button size="small" :icon="Download" @click="exportLogs">导出</el-button>
                 <el-button size="small" :icon="Delete" @click="store.clear">清空</el-button>
@@ -128,7 +143,13 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
                 size="small"
                 class="search-input"
             />
-            <el-select v-model="store.serverFilter" placeholder="全部服务器" clearable size="small" class="server-select">
+            <el-select
+                v-model="store.serverFilter"
+                placeholder="全部服务器"
+                clearable
+                size="small"
+                class="server-select"
+            >
                 <el-option label="全部服务器" value="" />
                 <el-option
                     v-for="sid in store.serverIds"
@@ -144,16 +165,13 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
 
         <!-- 终端日志区 -->
         <div class="log-view" ref="logContainer">
-            <div
-                v-for="(line, i) in store.filtered"
-                :key="i"
-                class="log-line"
-                :class="line.level"
-            >
+            <div v-for="(line, i) in store.filtered" :key="i" class="log-line" :class="line.level">
                 <span class="log-no">{{ i + 1 }}</span>
                 <span class="log-time">{{ fmtTime(line.time) }}</span>
                 <span class="log-level">[{{ line.level.toUpperCase() }}]</span>
-                <span class="log-source" :title="line.server_id">{{ store.serverName(line.server_id) }}</span>
+                <span class="log-source" :title="line.server_id">{{
+                    store.serverName(line.server_id)
+                }}</span>
                 <span class="log-msg">{{ line.message }}</span>
                 <el-button
                     class="copy-row"
@@ -256,9 +274,15 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
     height: 7px;
     border-radius: 50%;
 }
-.stat-badge.info .stat-dot { background: var(--info); }
-.stat-badge.warn .stat-dot { background: var(--warning); }
-.stat-badge.error .stat-dot { background: var(--danger); }
+.stat-badge.info .stat-dot {
+    background: var(--info);
+}
+.stat-badge.warn .stat-dot {
+    background: var(--warning);
+}
+.stat-badge.error .stat-dot {
+    background: var(--danger);
+}
 .stat-badge .stat-label {
     color: var(--content-fg-secondary);
     letter-spacing: 0.5px;
@@ -313,10 +337,18 @@ function toggleLevel(level: 'info' | 'warn' | 'error') {
     flex-shrink: 0;
     font-weight: 600;
 }
-.log-line.info .log-level { color: var(--terminal-level-info); }
-.log-line.warn .log-level { color: var(--terminal-level-warn); }
-.log-line.error .log-level { color: var(--terminal-level-error); }
-.log-line.error .log-msg { color: var(--terminal-level-error); }
+.log-line.info .log-level {
+    color: var(--terminal-level-info);
+}
+.log-line.warn .log-level {
+    color: var(--terminal-level-warn);
+}
+.log-line.error .log-level {
+    color: var(--terminal-level-error);
+}
+.log-line.error .log-msg {
+    color: var(--terminal-level-error);
+}
 .log-source {
     color: var(--terminal-source);
     margin-right: 10px;

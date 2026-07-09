@@ -263,10 +263,6 @@ async function onFileSelected(e: Event) {
     color: var(--content-fg-secondary);
 }
 
-.setting-form {
-    /* 表单跟随卡片宽度自适应，不再二次限宽 */
-}
-
 .hint {
     margin-left: 8px;
     color: var(--content-fg-secondary);

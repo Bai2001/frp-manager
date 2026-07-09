@@ -190,6 +190,13 @@ export const api = {
     async exportData(): Promise<string> {
         return await call(AppService.ExportData)
     },
+    /**
+     * 弹出原生保存对话框导出配置数据到用户选择的路径，默认目录为文档目录。
+     * 返回最终保存路径；用户取消时返回空字符串。
+     */
+    async exportDataToPath(): Promise<string> {
+        return await call(AppService.ExportDataToPath)
+    },
     async importData(raw: string): Promise<void> {
         await call(AppService.ImportData, raw)
     },

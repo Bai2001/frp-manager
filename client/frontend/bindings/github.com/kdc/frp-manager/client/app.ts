@@ -93,6 +93,15 @@ export function ExportData(): $CancellablePromise<string> {
 }
 
 /**
+ * ExportDataToPath 弹出原生保存文件对话框让用户选择导出位置，默认目录为用户文档目录，
+ * 默认文件名形如 frp-manager-backup-2026-07-09.json。用户确认后由后端直接写文件，
+ * 返回最终保存路径（取消则返回空字符串）。
+ */
+export function ExportDataToPath(): $CancellablePromise<string> {
+    return $Call.ByID(2959917573);
+}
+
+/**
  * GenerateFrpcConfig 根据指定服务器的映射生成 frpc.toml 内容。
  */
 export function GenerateFrpcConfig(serverId: string): $CancellablePromise<string> {

@@ -3,6 +3,7 @@ module github.com/kdc/frp-manager/client
 go 1.26.0
 
 require (
+	github.com/adrg/xdg v0.5.3
 	github.com/fatedier/frp v0.69.1
 	github.com/google/uuid v1.6.0
 	github.com/pelletier/go-toml/v2 v2.4.3
@@ -13,7 +14,6 @@ require (
 
 require (
 	github.com/Azure/go-ntlmssp v0.1.1 // indirect
-	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/coreos/go-oidc/v3 v3.20.0 // indirect

@@ -67,17 +67,12 @@ async function openDir() {
 
 async function exportData() {
     try {
-        const raw = await api.exportData()
-        const blob = new Blob([raw], { type: 'application/json' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        const ts = new Date().toISOString().slice(0, 10)
-        a.download = `frp-manager-backup-${ts}.json`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+        const savedPath = await api.exportDataToPath()
+        if (!savedPath) {
+            // 用户取消
+            return
+        }
+        ElMessage.success(`已导出到：${savedPath}`)
     } catch (e: any) {
         ElMessage.error('导出失败: ' + e.message)
     }

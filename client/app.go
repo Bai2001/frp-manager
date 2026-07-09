@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adrg/xdg"
 	v1 "github.com/fatedier/frp/pkg/config/v1"
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -708,6 +709,56 @@ func (a *App) ExportData() (string, error) {
 	}
 	a.EmitLog("info", fmt.Sprintf("已导出数据（%d 个服务器，%d 个映射）", len(servers), len(allTunnels)), "")
 	return string(data), nil
+}
+
+// ExportDataToPath 弹出原生保存文件对话框让用户选择导出位置，默认目录为用户文档目录，
+// 默认文件名形如 frp-manager-backup-2026-07-09.json。用户确认后由后端直接写文件，
+// 返回最终保存路径（取消则返回空字符串）。
+func (a *App) ExportDataToPath() (string, error) {
+	if a.app == nil {
+		return "", fmt.Errorf("应用未初始化")
+	}
+	if a.repo == nil {
+		return "", fmt.Errorf("数据库未初始化")
+	}
+	// 默认目录：用户文档目录（xdg 跨平台解析，Windows 用 Known Folder FOLDERID_Documents）
+	defaultDir := xdg.UserDirs.Documents
+	if defaultDir == "" {
+		// 文档目录解析失败时回退到用户主目录
+		defaultDir = xdg.Home
+	}
+	defaultName := fmt.Sprintf("frp-manager-backup-%s.json", time.Now().UTC().Format("2006-01-02"))
+	// 弹出原生保存对话框，绑定主窗口（模态）
+	dialog := a.app.Dialog.SaveFile().
+		SetMessage("导出配置数据").
+		SetDirectory(defaultDir).
+		SetFilename(defaultName).
+		AddFilter("JSON 文件", "*.json").
+		AttachToWindow(a.mainWindow)
+	savePath, err := dialog.PromptForSingleSelection()
+	if err != nil {
+		a.EmitLog("error", "导出对话框失败: "+err.Error(), "")
+		return "", fmt.Errorf("导出对话框: %w", err)
+	}
+	if savePath == "" {
+		// 用户取消
+		return "", nil
+	}
+	// 生成备份数据并写入用户选择的路径
+	raw, err := a.ExportData()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(savePath), 0o755); err != nil {
+		a.EmitLog("error", "创建导出目录失败: "+err.Error(), "")
+		return "", fmt.Errorf("创建导出目录: %w", err)
+	}
+	if err := os.WriteFile(savePath, []byte(raw), 0o644); err != nil {
+		a.EmitLog("error", "写入导出文件失败: "+err.Error(), "")
+		return "", fmt.Errorf("写入导出文件: %w", err)
+	}
+	a.EmitLog("info", "配置数据已导出到 "+savePath, "")
+	return savePath, nil
 }
 
 // ImportData 从 JSON 字符串导入数据。策略：全量替换（先删后插）。

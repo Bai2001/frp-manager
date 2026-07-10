@@ -2,8 +2,10 @@ package frps
 
 import (
 	"context"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -51,18 +53,31 @@ end = 60000
 	}
 }
 
+// freePort 返回一个空闲 TCP 端口，避免与真实 frps 服务冲突。
+func freePort(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("获取空闲端口: %v", err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
 func TestStatus_NotRunning(t *testing.T) {
-	p := writeFrpsToml(t, `bindPort = 7000`)
+	port := freePort(t)
+	p := writeFrpsToml(t, `bindPort = `+strconv.Itoa(port)+`
+`)
 	m := NewManager(p)
 	st, err := m.Status(context.Background())
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
 	if st.Running {
-		t.Errorf("Running = true, want false（无真实 frps 监听 7000）")
+		t.Errorf("Running = true, want false（端口 %d 无 frps 监听）", port)
 	}
-	if st.BindPort != 7000 {
-		t.Errorf("BindPort = %d", st.BindPort)
+	if st.BindPort != port {
+		t.Errorf("BindPort = %d, want %d", st.BindPort, port)
 	}
 }
 

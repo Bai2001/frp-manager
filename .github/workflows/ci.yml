@@ -44,7 +44,7 @@ jobs:
 
   client:
     name: 客户端检查
-    runs-on: windows-latest
+    runs-on: [self-hosted, Linux, X64]
     defaults:
       run:
         working-directory: client
@@ -62,17 +62,29 @@ jobs:
         if: github.ref == 'refs/heads/master'
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.117
 
+      - name: 配置 Node.js
+        if: github.ref == 'refs/heads/master'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/frontend/package-lock.json
+
+      - name: 配置 npm
+        if: github.ref == 'refs/heads/master'
+        run: npm install --global npm@11.18.0
+
       - name: 创建前端嵌入占位文件
         run: |
-          New-Item -ItemType Directory -Force frontend/dist | Out-Null
-          New-Item -ItemType File -Force frontend/dist/.gitkeep | Out-Null
+          mkdir -p frontend/dist
+          touch frontend/dist/.gitkeep
 
       - name: 执行 Go 测试
         run: go test ./...
 
       - name: 构建 Windows 客户端
         if: github.ref == 'refs/heads/master'
-        run: wails3 package
+        run: wails3 package GOOS=windows GOARCH=amd64
 
       - name: 上传客户端构建产物
         if: github.ref == 'refs/heads/master'

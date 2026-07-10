@@ -1,0 +1,89 @@
+name: 持续集成
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: 服务端检查与构建
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+
+      - name: 配置 Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: server/go.sum
+
+      - name: 执行测试
+        run: go test ./...
+
+      - name: 构建 Linux 二进制
+        run: go build -trimpath -buildvcs=false -o bin/agent ./cmd/agent
+
+      - name: 上传服务端构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: frp-server-linux-amd64
+          path: server/bin/agent
+          if-no-files-found: error
+          retention-days: 7
+
+  client:
+    name: 客户端检查与构建
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+
+      - name: 配置 Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: client/go.sum
+
+      - name: 安装 Wails v3 CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.117
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/frontend/package-lock.json
+
+      - name: 执行 Go 测试
+        run: go test ./...
+
+      - name: 构建 Windows 客户端
+        run: wails3 package
+
+      - name: 上传客户端构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: frp-manager-windows-amd64
+          path: client/bin/frp-manager.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: 上传 Windows 安装程序
+        uses: actions/upload-artifact@v4
+        with:
+          name: frp-manager-windows-installer-amd64
+          path: client/bin/frp-manager-amd64-installer.exe
+          if-no-files-found: error
+          retention-days: 7

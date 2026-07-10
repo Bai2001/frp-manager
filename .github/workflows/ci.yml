@@ -87,7 +87,7 @@ jobs:
 
       - name: 安装 Wails 编译依赖
         run: |
-          PACKAGES="pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libglib2.0-dev"
+          PACKAGES="pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libglib2.0-dev nsis"
           NEED_INSTALL=""
           for pkg in $PACKAGES; do
             if ! dpkg -s "$pkg" >/dev/null 2>&1; then

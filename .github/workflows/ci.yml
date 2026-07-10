@@ -12,7 +12,7 @@ permissions:
 jobs:
   server:
     name: 服务端检查
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     defaults:
       run:
         working-directory: server

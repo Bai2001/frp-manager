@@ -60,7 +60,10 @@ jobs:
 
       - name: 安装 Wails v3 CLI
         if: github.ref == 'refs/heads/master'
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.117
+        run: |
+          if ! command -v wails3 >/dev/null 2>&1; then
+            go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.117
+          fi
 
       - name: 配置 Node.js
         if: github.ref == 'refs/heads/master'
@@ -72,7 +75,10 @@ jobs:
 
       - name: 配置 npm
         if: github.ref == 'refs/heads/master'
-        run: npm install --global npm@11.18.0
+        run: |
+          if [ "$(npm --version)" != "11.18.0" ]; then
+            npm install --global npm@11.18.0
+          fi
 
       - name: 创建前端嵌入占位文件
         run: |
@@ -81,8 +87,17 @@ jobs:
 
       - name: 安装 Wails 编译依赖
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libglib2.0-dev
+          PACKAGES="pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libglib2.0-dev"
+          NEED_INSTALL=""
+          for pkg in $PACKAGES; do
+            if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+              NEED_INSTALL="$NEED_INSTALL $pkg"
+            fi
+          done
+          if [ -n "$NEED_INSTALL" ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y $NEED_INSTALL
+          fi
 
       - name: 执行 Go 测试
         run: go test ./...

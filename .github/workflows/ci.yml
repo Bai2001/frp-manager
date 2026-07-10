@@ -69,6 +69,14 @@ jobs:
           cache: npm
           cache-dependency-path: client/frontend/package-lock.json
 
+      - name: 安装前端依赖
+        working-directory: client/frontend
+        run: npm ci
+
+      - name: 生成前端嵌入资源
+        working-directory: client/frontend
+        run: npm run build
+
       - name: 执行 Go 测试
         run: go test ./...
 

@@ -2,16 +2,16 @@ name: 持续集成
 
 on:
   push:
-    branches: [main, dev]
+    branches: [master, dev]
   pull_request:
-    branches: [main, dev]
+    branches: [master, dev]
 
 permissions:
   contents: read
 
 jobs:
   server:
-    name: 服务端检查与构建
+    name: 服务端检查
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -30,9 +30,11 @@ jobs:
         run: go test ./...
 
       - name: 构建 Linux 二进制
+        if: github.ref == 'refs/heads/master'
         run: go build -trimpath -buildvcs=false -o bin/agent ./cmd/agent
 
       - name: 上传服务端构建产物
+        if: github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
           name: frp-server-linux-amd64
@@ -41,7 +43,7 @@ jobs:
           retention-days: 7
 
   client:
-    name: 客户端检查与构建
+    name: 客户端检查
     runs-on: windows-latest
     defaults:
       run:
@@ -57,6 +59,7 @@ jobs:
           cache-dependency-path: client/go.sum
 
       - name: 安装 Wails v3 CLI
+        if: github.ref == 'refs/heads/master'
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.117
 
       - name: 配置 Node.js
@@ -70,9 +73,11 @@ jobs:
         run: go test ./...
 
       - name: 构建 Windows 客户端
+        if: github.ref == 'refs/heads/master'
         run: wails3 package
 
       - name: 上传客户端构建产物
+        if: github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
           name: frp-manager-windows-amd64
@@ -81,6 +86,7 @@ jobs:
           retention-days: 7
 
       - name: 上传 Windows 安装程序
+        if: github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
           name: frp-manager-windows-installer-amd64

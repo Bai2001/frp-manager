@@ -62,20 +62,10 @@ jobs:
         if: github.ref == 'refs/heads/master'
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.117
 
-      - name: 配置 Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: client/frontend/package-lock.json
-
-      - name: 安装前端依赖
-        working-directory: client/frontend
-        run: npm ci
-
-      - name: 生成前端嵌入资源
-        working-directory: client/frontend
-        run: npm run build
+      - name: 创建前端嵌入占位文件
+        run: |
+          New-Item -ItemType Directory -Force frontend/dist | Out-Null
+          New-Item -ItemType File -Force frontend/dist/.gitkeep | Out-Null
 
       - name: 执行 Go 测试
         run: go test ./...

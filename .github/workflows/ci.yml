@@ -12,7 +12,7 @@ permissions:
 jobs:
   server:
     name: 服务端检查
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: server
@@ -44,10 +44,11 @@ jobs:
 
   client:
     name: 客户端检查
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: windows-latest
     defaults:
       run:
         working-directory: client
+        shell: bash
     steps:
       - name: 检出代码
         uses: actions/checkout@v6
@@ -60,10 +61,7 @@ jobs:
 
       - name: 安装 Wails v3 CLI
         if: github.ref == 'refs/heads/master'
-        run: |
-          if ! command -v wails3 >/dev/null 2>&1; then
-            go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.117
-          fi
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.117
 
       - name: 配置 Node.js
         if: github.ref == 'refs/heads/master'
@@ -75,29 +73,12 @@ jobs:
 
       - name: 配置 npm
         if: github.ref == 'refs/heads/master'
-        run: |
-          if [ "$(npm --version)" != "11.18.0" ]; then
-            npm install --global npm@11.18.0
-          fi
+        run: npm install --global npm@11.18.0
 
       - name: 创建前端嵌入占位文件
         run: |
           mkdir -p frontend/dist
           touch frontend/dist/.gitkeep
-
-      - name: 安装 Wails 编译依赖
-        run: |
-          PACKAGES="pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libglib2.0-dev nsis"
-          NEED_INSTALL=""
-          for pkg in $PACKAGES; do
-            if ! dpkg -s "$pkg" >/dev/null 2>&1; then
-              NEED_INSTALL="$NEED_INSTALL $pkg"
-            fi
-          done
-          if [ -n "$NEED_INSTALL" ]; then
-            sudo apt-get update -qq
-            sudo apt-get install -y $NEED_INSTALL
-          fi
 
       - name: 执行 Go 测试
         run: go test ./...
